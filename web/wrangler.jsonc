@@ -1,0 +1,11 @@
+// Mise en ligne sur Cloudflare (Workers + fichiers statiques)
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "equipe360",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    // toute adresse inconnue renvoie l'appli (routes React)
+    "not_found_handling": "single-page-application"
+  }
+}

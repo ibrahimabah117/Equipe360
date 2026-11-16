@@ -4,8 +4,17 @@ import { createClient } from '@supabase/supabase-js'
 const url = import.meta.env.VITE_SUPABASE_URL ?? 'https://pssdfeckbbnagvcwmtfl.supabase.co'
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? 'sb_publishable_c6pLlwaHg09d1q7v3fp8SA_439mHfwy'
 
+/** Réseau faible : on abandonne une requête au bout de 15 s plutôt que de bloquer l'écran */
+function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), 15000)
+  init?.signal?.addEventListener('abort', () => ctrl.abort())
+  return fetch(input, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(t))
+}
+
 export const supabase = createClient(url, key, {
   auth: { persistSession: true, autoRefreshToken: true },
+  global: { fetch: fetchWithTimeout },
 })
 
 export type Role = 'owner' | 'manager' | 'agent'
@@ -44,6 +53,7 @@ export interface Employee {
   job_title: string | null
   default_site_id: string | null
   base_salary: number
+  hire_date: string | null
   active: boolean
   created_at: string
 }
@@ -87,4 +97,44 @@ export function errorMessage(e: unknown): string {
   if (e instanceof Error) return e.message
   if (e && typeof e === 'object' && 'message' in e) return String((e as { message: unknown }).message)
   return 'Une erreur est survenue'
+}
+
+export type EntryStatus = 'planned' | 'absent' | 'replacement'
+export type AbsenceKind = 'maladie' | 'conge' | 'injustifiee' | 'permission' | 'autre'
+
+export interface ScheduleEntry {
+  id: string
+  company_id: string
+  employee_id: string
+  site_id: string
+  work_date: string
+  shift_type_id: string
+  status: EntryStatus
+  replaces_employee_id: string | null
+  absence_kind: AbsenceKind | null
+  note: string | null
+  created_at: string
+}
+
+export interface SiteNeed {
+  company_id: string
+  site_id: string
+  shift_type_id: string
+  headcount: number
+}
+
+export interface Punch {
+  id: string
+  company_id: string
+  employee_id: string
+  site_id: string
+  kind: 'in' | 'out'
+  punched_at: string
+  received_at: string
+  latitude: number | null
+  longitude: number | null
+  distance_m: number | null
+  gps_ok: boolean
+  client_id: string
+  recorded_by: string | null
 }
