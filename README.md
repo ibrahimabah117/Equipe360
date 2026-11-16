@@ -32,7 +32,7 @@ npm run dev
 ## Étapes
 
 1. ✅ Base de données, connexion par téléphone, employés et sites, import Excel, QR codes
-2. Planning, absences, remplaçants
+2. ✅ Planning, absences, remplaçants
 3. Pointage QR + GPS, mode hors ligne
 4. Calcul de la paie, fiches PDF
 5. Mise en ligne et test avec un premier client

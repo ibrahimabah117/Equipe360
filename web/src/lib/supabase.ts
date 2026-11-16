@@ -88,3 +88,27 @@ export function errorMessage(e: unknown): string {
   if (e && typeof e === 'object' && 'message' in e) return String((e as { message: unknown }).message)
   return 'Une erreur est survenue'
 }
+
+export type EntryStatus = 'planned' | 'absent' | 'replacement'
+export type AbsenceKind = 'maladie' | 'conge' | 'injustifiee' | 'permission' | 'autre'
+
+export interface ScheduleEntry {
+  id: string
+  company_id: string
+  employee_id: string
+  site_id: string
+  work_date: string
+  shift_type_id: string
+  status: EntryStatus
+  replaces_employee_id: string | null
+  absence_kind: AbsenceKind | null
+  note: string | null
+  created_at: string
+}
+
+export interface SiteNeed {
+  company_id: string
+  site_id: string
+  shift_type_id: string
+  headcount: number
+}

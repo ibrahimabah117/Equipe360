@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Check, KeyRound, MapPin, MapPinOff, QrCode, Upload, Users } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CalendarCheck2, CalendarDays, Check, KeyRound, MapPin, MapPinOff, QrCode, Upload, UserX, Users } from 'lucide-react'
+import { addDays, dayLong, today } from '../lib/dates'
 import { supabase } from '../lib/supabase'
 import { useCompany } from '../lib/company'
 import { formatDate, sectorLabel } from '../lib/format'
@@ -12,6 +13,10 @@ interface Stats {
   sitesNoGps: number
   accounts: number
   agentsWithAccess: number
+  todayShifts: number
+  todayAbsent: number
+  todayUncovered: number
+  upcomingEntries: number
 }
 
 export default function Dashboard() {
@@ -20,11 +25,21 @@ export default function Dashboard() {
 
   useEffect(() => {
     ;(async () => {
-      const [emp, sites, members] = await Promise.all([
+      const d = today()
+      const [emp, sites, members, todayEntries, needs, upcoming] = await Promise.all([
         supabase.from('employees').select('id', { count: 'exact', head: true }).eq('company_id', company.id).eq('active', true),
         supabase.from('sites').select('latitude').eq('company_id', company.id).eq('active', true),
         supabase.from('company_members').select('role, employee_id').eq('company_id', company.id),
+        supabase.from('schedule_entries').select('site_id, shift_type_id, status').eq('company_id', company.id).eq('work_date', d),
+        supabase.from('site_shift_needs').select('site_id, shift_type_id, headcount').eq('company_id', company.id),
+        supabase.from('schedule_entries').select('id', { count: 'exact', head: true }).eq('company_id', company.id).gte('work_date', d).lte('work_date', addDays(d, 13)),
       ])
+      const te = todayEntries.data ?? []
+      let uncovered = 0
+      for (const n of needs.data ?? []) {
+        const present = te.filter((e) => e.site_id === n.site_id && e.shift_type_id === n.shift_type_id && e.status !== 'absent').length
+        uncovered += Math.max(0, n.headcount - present)
+      }
       const siteRows = sites.data ?? []
       const mem = members.data ?? []
       setS({
@@ -33,6 +48,10 @@ export default function Dashboard() {
         sitesNoGps: siteRows.filter((x) => x.latitude == null).length,
         accounts: mem.length,
         agentsWithAccess: mem.filter((m) => m.employee_id).length,
+        todayShifts: te.filter((e) => e.status !== 'absent').length,
+        todayAbsent: te.filter((e) => e.status === 'absent').length,
+        todayUncovered: uncovered,
+        upcomingEntries: upcoming.count ?? 0,
       })
     })()
   }, [company.id])
@@ -48,6 +67,7 @@ export default function Dashboard() {
     { done: s.sitesNoGps === 0 && s.sites > 0, title: 'Enregistrer la position GPS', text: 'Pour vérifier que l’agent pointe bien sur place.', to: `${base}/sites`, icon: MapPinOff },
     { done: s.employees > 0, title: 'Importer vos employés', text: 'Depuis un fichier Excel ou un par un.', to: `${base}/employes`, icon: Upload },
     { done: false, title: 'Imprimer les QR codes', text: 'Un code à afficher dans chaque site.', to: `${base}/sites/qr`, icon: QrCode },
+    { done: s.upcomingEntries > 0, title: 'Préparer le planning', text: 'Générez les gardes en un clic avec un cycle jour/nuit.', to: `${base}/planning`, icon: CalendarDays },
     { done: s.agentsWithAccess > 0, title: 'Donner les accès', text: 'Numéro + mot de passe, envoyés par WhatsApp.', to: `${base}/acces`, icon: KeyRound },
   ]
   const progress = steps.filter((x) => x.done).length
@@ -127,20 +147,24 @@ export default function Dashboard() {
             </div>
           </Card>
 
-          <Card className="p-5">
-            <p className="text-xs font-medium tracking-wide text-ink-400 uppercase">Prochainement</p>
-            <ul className="mt-3 space-y-3 text-sm">
+          <Card>
+            <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4">
+              <div>
+                <h2 className="font-semibold">Aujourd’hui</h2>
+                <p className="text-sm text-ink-500 capitalize">{dayLong(today())}</p>
+              </div>
+              <Link to={`${base}/planning`} className="text-sm font-medium text-brand-600 hover:text-brand-700">Planning</Link>
+            </div>
+            <ul className="divide-y divide-ink-100 text-sm">
               {[
-                ['Planning des gardes', 'Jour / nuit, absences, remplaçants'],
-                ['Pointage QR + GPS', 'Fonctionne même hors connexion'],
-                ['Paie en GNF', 'Calcul automatique et fiches PDF'],
-              ].map(([t, d]) => (
-                <li key={t} className="flex gap-3">
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-brand-500" />
-                  <span>
-                    <span className="font-medium text-ink-900">{t}</span>
-                    <span className="block text-xs text-ink-500">{d}</span>
-                  </span>
+                { icon: CalendarCheck2, label: 'Gardes prévues', value: s.todayShifts, tone: 'text-brand-600 bg-brand-50' },
+                { icon: UserX, label: 'Absences', value: s.todayAbsent, tone: s.todayAbsent ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50' },
+                { icon: AlertTriangle, label: 'Postes non couverts', value: s.todayUncovered, tone: s.todayUncovered ? 'text-red-600 bg-red-50' : 'text-emerald-600 bg-emerald-50' },
+              ].map((r) => (
+                <li key={r.label} className="flex items-center gap-3 px-5 py-3">
+                  <span className={cx('flex size-8 items-center justify-center rounded-lg', r.tone)}><r.icon className="size-4" /></span>
+                  <span className="flex-1 text-ink-700">{r.label}</span>
+                  <span className="tabular text-base font-semibold">{r.value}</span>
                 </li>
               ))}
             </ul>

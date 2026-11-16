@@ -97,6 +97,7 @@ export function AppShell({
   const companyNav: NavItem[] = manage
     ? [
         { to: base, label: 'Tableau de bord', icon: LayoutDashboard, end: true },
+        { to: `${base}/planning`, label: 'Planning', icon: CalendarDays },
         { to: `${base}/employes`, label: 'Employés', icon: Users },
         { to: `${base}/sites`, label: 'Sites & QR codes', icon: MapPin },
         { to: `${base}/acces`, label: 'Comptes d’accès', icon: KeyRound },
@@ -104,7 +105,6 @@ export function AppShell({
     : [{ to: `${base}/moi`, label: 'Mon espace', icon: User }]
   const soonNav: NavItem[] = manage
     ? [
-        { to: '#planning', label: 'Planning', icon: CalendarDays, soon: true },
         { to: '#pointages', label: 'Pointages', icon: Clock, soon: true },
         { to: '#paie', label: 'Paie', icon: Wallet, soon: true },
       ]

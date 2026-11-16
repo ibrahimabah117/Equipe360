@@ -13,6 +13,7 @@ const Sites = lazy(() => import('./pages/Sites'))
 const QrPrint = lazy(() => import('./pages/QrPrint'))
 const Access = lazy(() => import('./pages/Access'))
 const Settings = lazy(() => import('./pages/Settings'))
+const Planning = lazy(() => import('./pages/Planning'))
 import { AgentHome, CompanyNotFound, Home, PunchLanding } from './pages/Misc'
 
 function Splash() {
@@ -48,6 +49,7 @@ function CompanyShell() {
         <Route path="employes" element={<ManagerOnly><Employees /></ManagerOnly>} />
         <Route path="sites" element={<ManagerOnly><Sites /></ManagerOnly>} />
         <Route path="sites/qr" element={<ManagerOnly><QrPrint /></ManagerOnly>} />
+        <Route path="planning" element={<ManagerOnly><Planning /></ManagerOnly>} />
         <Route path="acces" element={<ManagerOnly><Access /></ManagerOnly>} />
         <Route path="parametres" element={<ManagerOnly><Settings /></ManagerOnly>} />
         <Route path="moi" element={<AgentHome />} />
