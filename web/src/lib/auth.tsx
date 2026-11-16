@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase, type Role } from './supabase'
+import { cacheGet, cacheSet, isNetworkError, useQueueSync } from './offline'
 
 export interface Membership {
   company_id: string
@@ -34,15 +35,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setMemberships([])
       return
     }
-    const [{ data: admin }, { data: rows }] = await Promise.all([
+    const cacheKey = 'profile.' + s.user.id
+    const [{ data: admin, error: e1 }, { data: rows, error: e2 }] = await Promise.all([
       supabase.rpc('am_i_platform_admin'),
       supabase
         .from('company_members')
         .select('company_id, role, employee_id, display_name, company:companies(id, name, sector, status)')
         .eq('user_id', s.user.id),
     ])
+    if (isNetworkError(e1) || isNetworkError(e2)) {
+      // Hors connexion : on reprend le dernier profil connu
+      const cached = cacheGet<{ isAdmin: boolean; memberships: Membership[] }>(cacheKey)
+      setIsAdmin(cached?.isAdmin ?? false)
+      setMemberships(cached?.memberships ?? [])
+      return
+    }
     setIsAdmin(Boolean(admin))
     setMemberships((rows ?? []) as unknown as Membership[])
+    cacheSet(cacheKey, { isAdmin: Boolean(admin), memberships: rows ?? [] })
   }, [])
 
   useEffect(() => {
@@ -50,6 +60,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data }) => {
       if (!active) return
       setSession(data.session)
+      // Affichage immédiat avec le dernier profil connu, mise à jour en arrière-plan
+      const cached = data.session ? cacheGet<{ isAdmin: boolean; memberships: Membership[] }>('profile.' + data.session.user.id) : null
+      if (cached) {
+        setIsAdmin(cached.isAdmin)
+        setMemberships(cached.memberships)
+        setLoading(false)
+        loadProfile(data.session)
+        return
+      }
       await loadProfile(data.session)
       if (active) setLoading(false)
     })
@@ -69,6 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sub.subscription.unsubscribe()
     }
   }, [loadProfile])
+
+  useQueueSync(Boolean(session))
 
   const refresh = useCallback(() => loadProfile(session), [loadProfile, session])
   const signOut = useCallback(async () => {

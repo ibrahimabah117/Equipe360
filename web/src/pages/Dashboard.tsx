@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, ArrowRight, CalendarCheck2, CalendarDays, Check, KeyRound, MapPin, MapPinOff, QrCode, Upload, UserX, Users } from 'lucide-react'
-import { addDays, dayLong, today } from '../lib/dates'
+import { AlertTriangle, ArrowRight, CalendarCheck2, CalendarDays, Check, KeyRound, MapPin, MapPinOff, QrCode, Upload, UserCheck, UserX, Users } from 'lucide-react'
+import { addDays, conakryInstant, dayLong, today } from '../lib/dates'
 import { supabase } from '../lib/supabase'
 import { useCompany } from '../lib/company'
 import { formatDate, sectorLabel } from '../lib/format'
@@ -16,6 +16,7 @@ interface Stats {
   todayShifts: number
   todayAbsent: number
   todayUncovered: number
+  todayPresent: number
   upcomingEntries: number
 }
 
@@ -26,13 +27,14 @@ export default function Dashboard() {
   useEffect(() => {
     ;(async () => {
       const d = today()
-      const [emp, sites, members, todayEntries, needs, upcoming] = await Promise.all([
+      const [emp, sites, members, todayEntries, needs, upcoming, punches] = await Promise.all([
         supabase.from('employees').select('id', { count: 'exact', head: true }).eq('company_id', company.id).eq('active', true),
         supabase.from('sites').select('latitude').eq('company_id', company.id).eq('active', true),
         supabase.from('company_members').select('role, employee_id').eq('company_id', company.id),
         supabase.from('schedule_entries').select('site_id, shift_type_id, status').eq('company_id', company.id).eq('work_date', d),
         supabase.from('site_shift_needs').select('site_id, shift_type_id, headcount').eq('company_id', company.id),
         supabase.from('schedule_entries').select('id', { count: 'exact', head: true }).eq('company_id', company.id).gte('work_date', d).lte('work_date', addDays(d, 13)),
+        supabase.from('punches').select('employee_id').eq('company_id', company.id).eq('kind', 'in').gte('punched_at', new Date(conakryInstant(d, '00:00')).toISOString()),
       ])
       const te = todayEntries.data ?? []
       let uncovered = 0
@@ -52,6 +54,7 @@ export default function Dashboard() {
         todayAbsent: te.filter((e) => e.status === 'absent').length,
         todayUncovered: uncovered,
         upcomingEntries: upcoming.count ?? 0,
+        todayPresent: new Set((punches.data ?? []).map((p) => p.employee_id)).size,
       })
     })()
   }, [company.id])
@@ -153,11 +156,12 @@ export default function Dashboard() {
                 <h2 className="font-semibold">Aujourd’hui</h2>
                 <p className="text-sm text-ink-500 capitalize">{dayLong(today())}</p>
               </div>
-              <Link to={`${base}/planning`} className="text-sm font-medium text-brand-600 hover:text-brand-700">Planning</Link>
+              <Link to={`${base}/pointages`} className="text-sm font-medium text-brand-600 hover:text-brand-700">Pointages</Link>
             </div>
             <ul className="divide-y divide-ink-100 text-sm">
               {[
                 { icon: CalendarCheck2, label: 'Gardes prévues', value: s.todayShifts, tone: 'text-brand-600 bg-brand-50' },
+                { icon: UserCheck, label: 'Agents arrivés (pointage)', value: s.todayPresent, tone: 'text-emerald-600 bg-emerald-50' },
                 { icon: UserX, label: 'Absences', value: s.todayAbsent, tone: s.todayAbsent ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50' },
                 { icon: AlertTriangle, label: 'Postes non couverts', value: s.todayUncovered, tone: s.todayUncovered ? 'text-red-600 bg-red-50' : 'text-emerald-600 bg-emerald-50' },
               ].map((r) => (

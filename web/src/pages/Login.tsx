@@ -16,7 +16,7 @@ function translateAuthError(msg: string) {
   return msg
 }
 
-export default function Login() {
+export default function Login({ hint }: { hint?: string }) {
   const [tab, setTab] = useState<Tab>('phone')
   const [signup, setSignup] = useState(false)
   const [phone, setPhone] = useState('')
@@ -141,6 +141,7 @@ export default function Login() {
             ))}
           </div>
 
+          {hint && <div className="mt-6"><Callout tone="info">{hint}</Callout></div>}
           <form onSubmit={submit} className="mt-6 space-y-4">
             {tab === 'phone' ? (
               <Field label="Numéro de téléphone">
