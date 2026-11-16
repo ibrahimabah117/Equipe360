@@ -369,6 +369,7 @@ function EmployeeModal({
     job_title: employee?.job_title ?? 'Agent de sécurité',
     default_site_id: employee?.default_site_id ?? '',
     base_salary: String(employee?.base_salary ?? ''),
+    hire_date: employee?.hire_date ?? '',
     active: employee?.active ?? true,
   })
   const [loading, setLoading] = useState(false)
@@ -388,6 +389,7 @@ function EmployeeModal({
       job_title: form.job_title.trim() || null,
       default_site_id: form.default_site_id || null,
       base_salary: Number(form.base_salary || 0),
+      hire_date: form.hire_date || null,
       active: form.active,
     }
     const { error } = employee
@@ -439,6 +441,9 @@ function EmployeeModal({
         </Field>
         <Field label="Salaire de base (GNF / mois)">
           <Input type="number" min={0} step={5000} inputMode="numeric" value={form.base_salary} onChange={set('base_salary')} placeholder="1 500 000" />
+        </Field>
+        <Field label="Date d’embauche" hint="Pour la prime d’ancienneté.">
+          <Input type="date" value={form.hire_date} onChange={set('hire_date')} />
         </Field>
         {employee && (
           <div className="sm:col-span-2">
