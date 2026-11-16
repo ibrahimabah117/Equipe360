@@ -14,7 +14,10 @@ const QrPrint = lazy(() => import('./pages/QrPrint'))
 const Access = lazy(() => import('./pages/Access'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Planning = lazy(() => import('./pages/Planning'))
-import { AgentHome, CompanyNotFound, Home, PunchLanding } from './pages/Misc'
+const Attendance = lazy(() => import('./pages/Attendance'))
+const PunchPage = lazy(() => import('./pages/Punch').then((m) => ({ default: m.PunchPage })))
+const ScanPage = lazy(() => import('./pages/Punch').then((m) => ({ default: m.ScanPage })))
+import { AgentHome, CompanyNotFound, Home } from './pages/Misc'
 
 function Splash() {
   return (
@@ -50,6 +53,7 @@ function CompanyShell() {
         <Route path="sites" element={<ManagerOnly><Sites /></ManagerOnly>} />
         <Route path="sites/qr" element={<ManagerOnly><QrPrint /></ManagerOnly>} />
         <Route path="planning" element={<ManagerOnly><Planning /></ManagerOnly>} />
+        <Route path="pointages" element={<ManagerOnly><Attendance /></ManagerOnly>} />
         <Route path="acces" element={<ManagerOnly><Access /></ManagerOnly>} />
         <Route path="parametres" element={<ManagerOnly><Settings /></ManagerOnly>} />
         <Route path="moi" element={<AgentHome />} />
@@ -67,7 +71,7 @@ function Router() {
   if (!session) {
     return (
       <Routes>
-        <Route path="/p/:token" element={<PunchLanding />} />
+        <Route path="/p/:token" element={<Login hint="Connectez-vous pour pointer sur ce site." />} />
         <Route path="*" element={<Login />} />
       </Routes>
     )
@@ -81,7 +85,8 @@ function Router() {
         element={isAdmin ? <AppShell><Suspense fallback={<PageLoader />}><AdminClients /></Suspense></AppShell> : <Navigate to="/" replace />}
       />
       <Route path="/c/:companyId/*" element={<CompanyArea />} />
-      <Route path="/p/:token" element={<PunchLanding />} />
+      <Route path="/p/:token" element={<Suspense fallback={<Splash />}><PunchPage /></Suspense>} />
+      <Route path="/scan" element={<Suspense fallback={<Splash />}><ScanPage /></Suspense>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

@@ -11,8 +11,42 @@ export function addDays(s: string, n: number): string {
   d.setDate(d.getDate() + n)
   return iso(d)
 }
+/** Les gardes sont à l'heure de Conakry (GMT, sans heure d'été), même si on consulte depuis la France */
+export const TZ = 'Africa/Conakry'
+
 export function today(): string {
-  return iso(new Date())
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+}
+
+/** Instant (ms) correspondant à une date + heure locales de Conakry (UTC+0) */
+export function conakryInstant(date: string, time: string): number {
+  const [y, m, d] = date.split('-').map(Number)
+  const [hh, mm] = time.split(':').map(Number)
+  return Date.UTC(y, m - 1, d, hh, mm)
+}
+
+/** 07:05 à l'heure de Conakry */
+export function timeAt(instant: string | number | Date): string {
+  return new Date(instant).toLocaleTimeString('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' })
+}
+
+/** Date de Conakry (AAAA-MM-JJ) d'un instant */
+export function dateAt(instant: string | number | Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(instant))
+}
+
+/** Valeur pour <input type="datetime-local"> à l'heure de Conakry */
+export function toLocalInput(instant: number | Date = Date.now()): string {
+  return new Date(instant).toISOString().slice(0, 16) // Conakry = UTC
+}
+export function fromLocalInput(v: string): Date {
+  return new Date(v + ':00Z')
+}
+
+export function minutesLabel(min: number): string {
+  const m = Math.round(Math.abs(min))
+  if (m < 60) return `${m} min`
+  return `${Math.floor(m / 60)} h${m % 60 ? String(m % 60).padStart(2, '0') : ''}`
 }
 /** Lundi de la semaine contenant la date */
 export function weekStart(s: string): string {

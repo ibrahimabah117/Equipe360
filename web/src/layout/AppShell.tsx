@@ -10,6 +10,7 @@ import {
   LogOut,
   MapPin,
   Menu,
+  ScanLine,
   Settings,
   ShieldCheck,
   User,
@@ -98,14 +99,17 @@ export function AppShell({
     ? [
         { to: base, label: 'Tableau de bord', icon: LayoutDashboard, end: true },
         { to: `${base}/planning`, label: 'Planning', icon: CalendarDays },
+        { to: `${base}/pointages`, label: 'Pointages', icon: Clock },
         { to: `${base}/employes`, label: 'Employés', icon: Users },
         { to: `${base}/sites`, label: 'Sites & QR codes', icon: MapPin },
         { to: `${base}/acces`, label: 'Comptes d’accès', icon: KeyRound },
       ]
-    : [{ to: `${base}/moi`, label: 'Mon espace', icon: User }]
+    : [
+        { to: `${base}/moi`, label: 'Mon espace', icon: User },
+        { to: '/scan', label: 'Pointer', icon: ScanLine },
+      ]
   const soonNav: NavItem[] = manage
     ? [
-        { to: '#pointages', label: 'Pointages', icon: Clock, soon: true },
         { to: '#paie', label: 'Paie', icon: Wallet, soon: true },
       ]
     : []
