@@ -8,7 +8,7 @@ Premier secteur visé : les sociétés de gardiennage.
 
 - Base de données et authentification : Supabase
 - Appli web installable (PWA), fonctionnement hors ligne
-- Mise en ligne : Netlify
+- Mise en ligne : Cloudflare (Workers, fichiers statiques)
 
 ## Démarrer en local
 
@@ -17,6 +17,17 @@ cd web
 npm install
 npm run dev
 ```
+
+## Mise en ligne (Cloudflare)
+
+Tableau de bord Cloudflare → Workers & Pages → Créer → Importer un dépôt Git → `equipe360` :
+
+- Répertoire racine : `web`
+- Commande de build : `npm run build`
+- Commande de déploiement : `npx wrangler deploy`
+
+Ou depuis un ordinateur : `cd web && npx wrangler login && npm run deploy`.
+La configuration est dans `web/wrangler.jsonc`.
 
 ## Organisation
 
@@ -35,4 +46,4 @@ npm run dev
 2. ✅ Planning, absences, remplaçants
 3. Pointage QR + GPS, mode hors ligne
 4. Calcul de la paie, fiches PDF
-5. Mise en ligne et test avec un premier client
+5. Mise en ligne (Cloudflare) et test avec un premier client
