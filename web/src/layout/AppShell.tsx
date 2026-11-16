@@ -100,6 +100,7 @@ export function AppShell({
         { to: base, label: 'Tableau de bord', icon: LayoutDashboard, end: true },
         { to: `${base}/planning`, label: 'Planning', icon: CalendarDays },
         { to: `${base}/pointages`, label: 'Pointages', icon: Clock },
+        { to: `${base}/paie`, label: 'Paie', icon: Wallet },
         { to: `${base}/employes`, label: 'Employés', icon: Users },
         { to: `${base}/sites`, label: 'Sites & QR codes', icon: MapPin },
         { to: `${base}/acces`, label: 'Comptes d’accès', icon: KeyRound },
@@ -108,11 +109,7 @@ export function AppShell({
         { to: `${base}/moi`, label: 'Mon espace', icon: User },
         { to: '/scan', label: 'Pointer', icon: ScanLine },
       ]
-  const soonNav: NavItem[] = manage
-    ? [
-        { to: '#paie', label: 'Paie', icon: Wallet, soon: true },
-      ]
-    : []
+  const soonNav: NavItem[] = []
 
   const email = session?.user.email ?? ''
   const isPhone = email.endsWith('@' + PHONE_DOMAIN)
@@ -194,7 +191,7 @@ export function AppShell({
   )
 
   return (
-    <div className="min-h-full lg:pl-64">
+    <div className="min-h-full lg:pl-64 print:pl-0">
       {/* Barre latérale fixe (ordinateur) */}
       <aside className="no-print fixed inset-y-0 left-0 z-30 hidden w-64 lg:block">{sidebar}</aside>
 
@@ -214,7 +211,7 @@ export function AppShell({
         {companyName && <span className="ml-auto truncate text-sm font-medium text-ink-500">{companyName}</span>}
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">{children}</main>
+      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10 print:p-0">{children}</main>
     </div>
   )
 }

@@ -53,6 +53,7 @@ export interface Employee {
   job_title: string | null
   default_site_id: string | null
   base_salary: number
+  hire_date: string | null
   active: boolean
   created_at: string
 }

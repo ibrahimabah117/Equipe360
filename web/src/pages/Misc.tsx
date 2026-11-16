@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { Building2, CheckCircle2, ChevronRight, CloudOff, LogIn, LogOut, MapPinOff, PauseCircle, ScanLine, ShieldX } from 'lucide-react'
+import { Building2, CheckCircle2, ChevronRight, CloudOff, FileText, LogIn, LogOut, MapPinOff, PauseCircle, ScanLine, ShieldX } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useCompany } from '../lib/company'
 import { supabase, type Employee, type Punch, type ScheduleEntry, type ShiftType, type Site } from '../lib/supabase'
 import { cacheGet, cacheSet, clearFailed, isNetworkError, syncQueue, usePunchQueue } from '../lib/offline'
 import { addDays, dateAt, dayLong, timeAt, today } from '../lib/dates'
 import { ABSENCE_LABELS, hhmm, ShiftIcon, shiftTone, toneClasses } from './planning/common'
-import { ROLE_LABELS, sectorLabel } from '../lib/format'
+import { formatGNF, ROLE_LABELS, sectorLabel } from '../lib/format'
+import { periodLabel } from '../lib/payroll'
 import { Avatar, Badge, Button, Callout, Card, cx, PageHeader, PageLoader } from '../ui'
 import { Logo } from '../ui/Logo'
 
@@ -107,13 +108,14 @@ export function AgentHome() {
     ;(async () => {
       if (!employeeId) return setLoading(false)
       const since = new Date(Date.now() - 48 * 3600e3).toISOString()
-      const [em, en, sh, si, pu] = await Promise.all([
+      const [em, en, sh, si, pu, ps] = await Promise.all([
         supabase.from('employees').select('*').eq('id', employeeId).maybeSingle(),
         supabase.from('schedule_entries').select('*').eq('employee_id', employeeId)
           .gte('work_date', addDays(today(), -1)).lte('work_date', addDays(today(), 13)).order('work_date'),
         supabase.from('shift_types').select('*').eq('company_id', company.id),
         supabase.from('sites').select('*').eq('company_id', company.id),
         supabase.from('punches').select('*').eq('employee_id', employeeId).gte('punched_at', since).order('punched_at', { ascending: false }),
+        supabase.from('payslips').select('id, net, run:payroll_runs(period, status)').eq('employee_id', employeeId),
       ])
       if (isNetworkError(em.error)) return setLoading(false) // hors ligne : on garde le cache
       const next: AgentData = {
@@ -122,6 +124,11 @@ export function AgentHome() {
         shifts: Object.fromEntries(((sh.data ?? []) as ShiftType[]).map((x) => [x.id, x])),
         sites: Object.fromEntries(((si.data ?? []) as Site[]).map((x) => [x.id, x])),
         punches: (pu.data ?? []) as Punch[],
+        payslips: ((ps.data ?? []) as unknown as { id: string; net: number; run: { period: string; status: string } | null }[])
+          .filter((x) => x.run?.status === 'validated')
+          .map((x) => ({ id: x.id, net: Number(x.net), period: x.run!.period }))
+          .sort((a, b) => b.period.localeCompare(a.period))
+          .slice(0, 12),
       }
       // Les QR codes des sites restent reconnus sans réseau
       const byToken = cacheGet<Record<string, unknown>>('sitesByToken') ?? {}
@@ -240,6 +247,26 @@ export function AgentHome() {
         )}
       </Card>
 
+      {(d?.payslips?.length ?? 0) > 0 && (
+        <Card className="mt-4">
+          <div className="border-b border-ink-100 px-5 py-4">
+            <h2 className="font-semibold">Mes fiches de paie</h2>
+          </div>
+          <ul className="divide-y divide-ink-100">
+            {d!.payslips!.map((p) => (
+              <li key={p.id}>
+                <Link to={`/c/${company.id}/paie/${p.period}/fiches`} className="flex items-center gap-3 px-5 py-3 text-sm hover:bg-ink-50">
+                  <FileText className="size-4 text-brand-500" />
+                  <span className="flex-1 font-medium capitalize">{periodLabel(p.period)}</span>
+                  <span className="tabular font-semibold">{formatGNF(p.net)}</span>
+                  <ChevronRight className="size-4 text-ink-300" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
       <Card className="mt-4">
         <div className="border-b border-ink-100 px-5 py-4">
           <h2 className="font-semibold">Mes prochaines gardes</h2>
@@ -282,4 +309,5 @@ interface AgentData {
   shifts: Record<string, ShiftType>
   sites: Record<string, Site>
   punches: Punch[]
+  payslips?: { id: string; net: number; period: string }[]
 }

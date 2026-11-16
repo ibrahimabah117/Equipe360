@@ -3,7 +3,8 @@ import { Clock, Moon, Plus, Sun, Trash2 } from 'lucide-react'
 import { errorMessage, supabase, type ShiftType } from '../lib/supabase'
 import { useCompany } from '../lib/company'
 import { formatDate, formatGNF, formatPhone, normalizePhone, sectorLabel } from '../lib/format'
-import { Badge, Button, Card, ConfirmDialog, Field, IconButton, Input, Modal, PageHeader, useToast } from '../ui'
+import { Badge, Button, Card, ConfirmDialog, Field, IconButton, Input, Modal, PageHeader, Toggle, useToast } from '../ui'
+import { DEFAULT_SETTINGS, type PayrollSettings } from '../lib/payroll'
 
 const hhmm = (t: string) => t.slice(0, 5)
 function duration(a: string, b: string) {
@@ -83,6 +84,8 @@ export default function Settings() {
               )}
             </form>
           </Card>
+
+          <PayrollSettingsCard companyId={company.id} />
 
           <Card>
             <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4">
@@ -185,5 +188,89 @@ function ShiftModal({ shift, companyId, onClose, onSaved }: { shift: ShiftType |
         </div>
       </form>
     </Modal>
+  )
+}
+
+function PayrollSettingsCard({ companyId }: { companyId: string }) {
+  const toast = useToast()
+  const [v, setV] = useState<Omit<PayrollSettings, 'company_id'> | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    supabase
+      .from('payroll_settings')
+      .select('*')
+      .eq('company_id', companyId)
+      .maybeSingle()
+      .then(({ data }) => setV({ ...DEFAULT_SETTINGS, ...(data ?? {}) }))
+  }, [companyId])
+
+  useEffect(() => {
+    if (v && window.location.hash === '#paie') document.getElementById('paie')?.scrollIntoView({ behavior: 'smooth' })
+  }, [v])
+
+  if (!v) return null
+  const num = (k: keyof typeof v) => (e: { target: { value: string } }) => setV({ ...v, [k]: Number(e.target.value) })
+
+  async function save(e: FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    const { company_id: _ignored, updated_at: _u, ...rest } = v as PayrollSettings & { updated_at?: string }
+    void _ignored
+    void _u
+    const { error } = await supabase.from('payroll_settings').upsert({ ...rest, company_id: companyId })
+    setSaving(false)
+    if (error) return toast.error(errorMessage(error))
+    toast.success('Règles de paie enregistrées — elles s’appliquent aux prochains calculs')
+  }
+
+  return (
+    <Card>
+      <form onSubmit={save} id="paie">
+        <div className="border-b border-ink-100 px-5 py-4">
+          <h2 className="font-semibold">Règles de paie</h2>
+          <p className="text-sm text-ink-500">Utilisées au prochain calcul ou recalcul. Une paie déjà validée ne change pas.</p>
+        </div>
+        <div className="grid gap-x-4 gap-y-5 p-5 sm:grid-cols-2">
+          <Field label="Retenue par absence injustifiée" hint={`1/${v.absence_divisor} du salaire de base par garde manquée`}>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-ink-500">1 /</span>
+              <Input type="number" min={1} max={31} value={v.absence_divisor} onChange={num('absence_divisor')} className="w-24" />
+            </div>
+          </Field>
+          <div className="flex items-center sm:pt-6">
+            <Toggle checked={v.unpunched_as_absence} onChange={(x) => setV({ ...v, unpunched_as_absence: x })} label="Garde non pointée = absence injustifiée" />
+          </div>
+          <div className="sm:col-span-2">
+            <Toggle checked={v.late_deduction} onChange={(x) => setV({ ...v, late_deduction: x })} label="Retenir les retards" />
+          </div>
+          {v.late_deduction && (
+            <>
+              <Field label="Tolérance de retard par mois (minutes)" hint="Seules les minutes au-delà sont retenues">
+                <Input type="number" min={0} value={v.late_tolerance_min} onChange={num('late_tolerance_min')} />
+              </Field>
+              <Field label="Durée d’une garde de référence (heures)" hint="Sert à convertir les minutes de retard en GNF">
+                <Input type="number" min={1} max={24} step={0.5} value={v.reference_shift_hours} onChange={num('reference_shift_hours')} />
+              </Field>
+            </>
+          )}
+          <Field label="Prime de nuit (GNF par nuit travaillée)" hint="0 = désactivée">
+            <Input type="number" min={0} step={1000} value={v.night_bonus} onChange={num('night_bonus')} />
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Ancienneté (% / an)" hint="0 = désactivée">
+              <Input type="number" min={0} max={100} step={0.5} value={v.seniority_pct_per_year} onChange={num('seniority_pct_per_year')} />
+            </Field>
+            <Field label="Plafond (%)">
+              <Input type="number" min={0} max={100} value={v.seniority_cap_pct} onChange={num('seniority_cap_pct')} />
+            </Field>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-4 rounded-b-2xl border-t border-ink-100 bg-ink-50/60 px-5 py-3">
+          <p className="text-xs text-ink-500">Cotisations sociales et impôts : non calculés (utilisez « autre retenue »).</p>
+          <Button type="submit" loading={saving}>Enregistrer</Button>
+        </div>
+      </form>
+    </Card>
   )
 }
