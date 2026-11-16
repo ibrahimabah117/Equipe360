@@ -1,0 +1,59 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --color-ink-50: #f6f7fb;
+  --color-ink-100: #eceef5;
+  --color-ink-200: #dadeea;
+  --color-ink-300: #b9c0d4;
+  --color-ink-400: #8a93ad;
+  --color-ink-500: #636c88;
+  --color-ink-600: #4a526c;
+  --color-ink-700: #363d55;
+  --color-ink-800: #1f2640;
+  --color-ink-900: #0b1b3f;
+  --color-ink-950: #071230;
+
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #dfe7ff;
+  --color-brand-200: #c2d0ff;
+  --color-brand-300: #96adff;
+  --color-brand-400: #6282ff;
+  --color-brand-500: #2e5bff;
+  --color-brand-600: #1f45e6;
+  --color-brand-700: #1836b8;
+  --color-brand-800: #172f8f;
+  --color-brand-900: #172b70;
+
+  --shadow-card: 0 1px 2px rgb(11 27 63 / 0.04), 0 1px 3px rgb(11 27 63 / 0.06);
+  --shadow-pop: 0 12px 32px -8px rgb(11 27 63 / 0.25), 0 4px 8px -4px rgb(11 27 63 / 0.1);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-ink-50 text-ink-900 antialiased;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-in {
+  animation: fade-in 0.18s ease-out;
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; }
+}
