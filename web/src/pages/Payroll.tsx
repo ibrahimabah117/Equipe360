@@ -22,9 +22,11 @@ import { useCompany } from '../lib/company'
 import { formatDate, formatGNF } from '../lib/format'
 import { conakryInstant, today } from '../lib/dates'
 import {
+  baseLabel,
   computePayslip,
   DEFAULT_SETTINGS,
   monthEnd,
+  PAY_MODE_LABELS,
   periodLabel,
   totals,
   type PayrollRun,
@@ -125,7 +127,6 @@ export default function Payroll() {
           .from('punches')
           .select('*')
           .eq('company_id', company.id)
-          .eq('kind', 'in')
           .gte('punched_at', new Date(conakryInstant(period, '00:00') - 4 * 3600e3).toISOString())
           .lte('punched_at', new Date(conakryInstant(end, '23:59') + 24 * 3600e3).toISOString()),
       ])
@@ -195,7 +196,7 @@ export default function Payroll() {
   )
 
   async function exportExcel() {
-    const header = ['Employé', 'Poste', 'Salaire de base', 'Gardes faites', 'Gardes prévues', 'Abs. injustifiées', 'Retenue absences', 'Retards (min)', 'Retenue retards', 'Prime de nuit', 'Prime ancienneté', 'Prime except.', 'Avance', 'Autres retenues', 'Brut', 'Net à payer']
+    const header = ['Employé', 'Poste', 'Mode de paie', 'Tarif', 'Heures', 'Salaire de base', 'Gardes faites', 'Gardes prévues', 'Abs. injustifiées', 'Retenue absences', 'Retards (min)', 'Retenue retards', 'Prime de nuit', 'Prime ancienneté', 'Prime except.', 'Avance', 'Autres retenues', 'Brut', 'Net à payer']
     const n = (v: number) => ({ value: Number(v), format: '#,##0' })
     await writeExcelFile(
       [
@@ -203,6 +204,9 @@ export default function Payroll() {
         ...visible.map((s) => [
           { value: empById[s.employee_id]?.full_name ?? '' },
           { value: empById[s.employee_id]?.job_title ?? '' },
+          { value: PAY_MODE_LABELS[s.pay_mode ?? 'monthly'] },
+          n(s.pay_rate),
+          { value: Number(s.worked_hours) },
           n(s.base_salary),
           n(s.shifts_worked),
           n(s.shifts_planned),
@@ -218,7 +222,7 @@ export default function Payroll() {
           n(s.gross),
           n(s.net),
         ]),
-        [{ value: 'TOTAL', fontWeight: 'bold' as const }, ...Array(13).fill({ value: '' }), { ...n(sum.gross), fontWeight: 'bold' as const }, { ...n(sum.net), fontWeight: 'bold' as const }],
+        [{ value: 'TOTAL', fontWeight: 'bold' as const }, ...Array(16).fill({ value: '' }), { ...n(sum.gross), fontWeight: 'bold' as const }, { ...n(sum.net), fontWeight: 'bold' as const }],
       ],
       { columns: [{ width: 26 }, { width: 18 }, ...header.slice(2).map(() => ({ width: 14 }))] },
     ).toFile(`paie-${period.slice(0, 7)}-${company.name.toLowerCase().replace(/\W+/g, '-')}.xlsx`)
@@ -286,6 +290,13 @@ export default function Payroll() {
             <StatCard icon={Users} label="Bulletins" value={slips.length} />
           </div>
 
+          {!validated && period >= thisMonth() && (
+            <div className="mb-4">
+              <Callout tone="warning" title="Mois en cours">
+                Seules les gardes déjà commencées sont comptées. Recalculez la paie en fin de mois avant de la valider.
+              </Callout>
+            </div>
+          )}
           {!validated && (
             <div className="mb-4">
               <Callout tone="info">
@@ -332,7 +343,10 @@ export default function Payroll() {
                           </div>
                         </div>
                       </Td>
-                      <Td className="tabular hidden text-right text-ink-700 md:table-cell">{formatGNF(s.base_salary)}</Td>
+                      <Td className="tabular hidden text-right text-ink-700 md:table-cell">
+                        {formatGNF(s.base_salary)}
+                        {s.pay_mode !== 'monthly' && <span className="block text-[11px] text-ink-400">{baseLabel(s).sub}</span>}
+                      </Td>
                       <Td className="tabular hidden text-center text-ink-700 lg:table-cell">{s.shifts_worked}/{s.shifts_planned}</Td>
                       <Td className="tabular hidden text-right text-emerald-700 lg:table-cell">{primes ? '+' + formatGNF(primes) : '—'}</Td>
                       <Td className="tabular hidden text-right text-red-600 md:table-cell">{ret ? '−' + formatGNF(ret) : '—'}</Td>
@@ -482,10 +496,15 @@ function PayslipModal({
         <div>
           <p className="mb-2 text-xs font-medium tracking-wide text-ink-400 uppercase">Calcul automatique</p>
           <div className="divide-y divide-ink-100 rounded-xl px-4 ring-1 ring-ink-100">
-            <Line label="Salaire de base" value={slip.base_salary} />
+            <Line label={baseLabel(slip).label} sub={baseLabel(slip).sub} value={slip.base_salary} />
             <Line label="Prime de nuit" sub={`${slip.night_shifts} nuit${slip.night_shifts > 1 ? 's' : ''} × ${formatGNF(settings.night_bonus)}`} value={slip.night_bonus} tone="plus" />
             <Line label="Prime d’ancienneté" sub={`${slip.seniority_years} an${slip.seniority_years > 1 ? 's' : ''}${employee?.hire_date ? '' : ' (date d’embauche non renseignée)'}`} value={slip.seniority_bonus} tone="plus" />
-            <Line label="Absences injustifiées" sub={`${slip.unjustified_absences} × 1/${settings.absence_divisor} du salaire`} value={slip.absence_deduction} tone="minus" />
+            <Line
+              label="Absences injustifiées"
+              sub={slip.pay_mode === 'monthly' ? `${slip.unjustified_absences} × 1/${settings.absence_divisor} du salaire` : `${slip.unjustified_absences} garde${slip.unjustified_absences > 1 ? 's' : ''} non payée${slip.unjustified_absences > 1 ? 's' : ''}`}
+              value={slip.absence_deduction}
+              tone="minus"
+            />
             <Line label="Retards" sub={`${slip.late_minutes} min cumulées, ${lateBillable} min retenues (tolérance ${settings.late_tolerance_min} min)`} value={slip.late_deduction} tone="minus" />
           </div>
           {slip.shifts_unpunched > 0 && (

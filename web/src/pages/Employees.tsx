@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNo
 import { Link } from 'react-router-dom'
 import writeExcelFile from 'write-excel-file/browser'
 import { Download, KeyRound, MoreHorizontal, Pencil, Plus, Power, Search, Upload, UserPlus, Users } from 'lucide-react'
-import { errorMessage, supabase, type Employee, type Site } from '../lib/supabase'
+import { errorMessage, supabase, type Employee, type PayMode, type Site } from '../lib/supabase'
 import { useCompany } from '../lib/company'
+import { PAY_MODE_LABELS, PAY_MODE_UNIT } from '../lib/payroll'
 import { formatGNF, formatPhone, normalizePhone } from '../lib/format'
 import {
   Avatar,
@@ -94,16 +95,17 @@ export default function Employees() {
     const rows = (employees ?? []).filter((e) => e.active)
     await writeExcelFile(
       [
-        ['Nom complet', 'Téléphone', 'Poste', 'Site', 'Salaire de base (GNF)'].map((v) => ({ value: v, fontWeight: 'bold' as const })),
+        ['Nom complet', 'Téléphone', 'Poste', 'Site', 'Mode de paie', 'Montant (GNF)'].map((v) => ({ value: v, fontWeight: 'bold' as const })),
         ...rows.map((e) => [
           { value: e.full_name },
           { value: e.phone ? formatPhone(e.phone) : '' },
           { value: e.job_title ?? '' },
           { value: e.default_site_id ? siteName[e.default_site_id] ?? '' : '' },
-          { value: Number(e.base_salary), format: '#,##0' },
+          { value: PAY_MODE_LABELS[e.pay_mode ?? 'monthly'] },
+          { value: Number(e.pay_mode === 'monthly' || !e.pay_mode ? e.base_salary : e.pay_rate), format: '#,##0' },
         ]),
       ],
-      { columns: [{ width: 28 }, { width: 18 }, { width: 18 }, { width: 24 }, { width: 20 }] },
+      { columns: [{ width: 28 }, { width: 18 }, { width: 18 }, { width: 24 }, { width: 14 }, { width: 16 }] },
     ).toFile(`employes-${company.name.toLowerCase().replace(/\W+/g, '-')}.xlsx`)
   }
 
@@ -191,7 +193,7 @@ export default function Employees() {
                     <Th>Employé</Th>
                     <Th>Téléphone</Th>
                     <Th>Site</Th>
-                    <Th className="text-right">Salaire de base</Th>
+                    <Th className="text-right">Rémunération</Th>
                     <Th>Accès</Th>
                     <Th />
                   </tr>
@@ -212,7 +214,10 @@ export default function Employees() {
                       <Td className="text-ink-700">
                         {e.default_site_id ? siteName[e.default_site_id] : <span className="text-ink-400">Non affecté</span>}
                       </Td>
-                      <Td className="tabular text-right text-ink-700">{formatGNF(e.base_salary)}</Td>
+                      <Td className="tabular text-right text-ink-700">
+                        {formatGNF(e.pay_mode === 'monthly' || !e.pay_mode ? e.base_salary : e.pay_rate)}
+                        <span className="text-ink-400"> {PAY_MODE_UNIT[e.pay_mode ?? 'monthly']}</span>
+                      </Td>
                       <Td>
                         {!e.active ? (
                           <Badge>Inactif</Badge>
@@ -369,6 +374,8 @@ function EmployeeModal({
     job_title: employee?.job_title ?? 'Agent de sécurité',
     default_site_id: employee?.default_site_id ?? '',
     base_salary: String(employee?.base_salary ?? ''),
+    pay_mode: (employee?.pay_mode ?? 'monthly') as PayMode,
+    pay_rate: String(employee?.pay_rate || ''),
     hire_date: employee?.hire_date ?? '',
     active: employee?.active ?? true,
   })
@@ -389,6 +396,8 @@ function EmployeeModal({
       job_title: form.job_title.trim() || null,
       default_site_id: form.default_site_id || null,
       base_salary: Number(form.base_salary || 0),
+      pay_mode: form.pay_mode,
+      pay_rate: Number(form.pay_rate || 0),
       hire_date: form.hire_date || null,
       active: form.active,
     }
@@ -439,9 +448,43 @@ function EmployeeModal({
             ))}
           </Select>
         </Field>
-        <Field label="Salaire de base (GNF / mois)">
-          <Input type="number" min={0} step={5000} inputMode="numeric" value={form.base_salary} onChange={set('base_salary')} placeholder="1 500 000" />
-        </Field>
+        <div className="sm:col-span-2">
+          <span className="mb-1.5 block text-[13px] font-medium text-ink-700">Mode de paie</span>
+          <div className="grid grid-cols-3 gap-2">
+            {(
+              [
+                ['monthly', 'Au mois', 'Salaire fixe'],
+                ['per_shift', 'À la garde', 'Tarif × gardes faites'],
+                ['hourly', 'À l’heure', 'Tarif × heures pointées'],
+              ] as const
+            ).map(([v, t, d]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setForm({ ...form, pay_mode: v })}
+                className={cx(
+                  'rounded-xl p-2.5 text-left ring-1 transition-all',
+                  form.pay_mode === v ? 'bg-brand-50 ring-2 ring-brand-500' : 'ring-ink-200 hover:ring-ink-300',
+                )}
+              >
+                <span className="block text-sm font-medium">{t}</span>
+                <span className="block text-[11px] text-ink-500">{d}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        {form.pay_mode === 'monthly' ? (
+          <Field label="Salaire mensuel (GNF)">
+            <Input type="number" min={0} step={5000} inputMode="numeric" value={form.base_salary} onChange={set('base_salary')} placeholder="1 500 000" />
+          </Field>
+        ) : (
+          <Field
+            label={form.pay_mode === 'per_shift' ? 'Tarif par garde (GNF)' : 'Tarif horaire (GNF)'}
+            hint={form.pay_mode === 'per_shift' ? 'Payé pour chaque garde effectuée.' : 'Payé à la minute près, selon les pointages.'}
+          >
+            <Input type="number" min={0} step={form.pay_mode === 'per_shift' ? 1000 : 500} inputMode="numeric" value={form.pay_rate} onChange={set('pay_rate')} placeholder={form.pay_mode === 'per_shift' ? '60 000' : '5 000'} required />
+          </Field>
+        )}
         <Field label="Date d’embauche" hint="Pour la prime d’ancienneté.">
           <Input type="date" value={form.hire_date} onChange={set('hire_date')} />
         </Field>

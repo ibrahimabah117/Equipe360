@@ -40,6 +40,9 @@ export interface Payslip {
   company_id: string
   employee_id: string
   base_salary: number
+  pay_mode: 'monthly' | 'per_shift' | 'hourly'
+  pay_rate: number
+  worked_hours: number
   shifts_planned: number
   shifts_worked: number
   shifts_unpunched: number
@@ -79,6 +82,9 @@ function shiftMinutes(s: ShiftType) {
   return d
 }
 
+export const PAY_MODE_LABELS = { monthly: 'Au mois', per_shift: 'À la garde', hourly: 'À l’heure' } as const
+export const PAY_MODE_UNIT = { monthly: '/ mois', per_shift: '/ garde', hourly: '/ heure' } as const
+
 export function monthEnd(period: string): string {
   const [y, m] = period.split('-').map(Number)
   const d = new Date(Date.UTC(y, m, 0))
@@ -113,7 +119,10 @@ export function computePayslip(params: {
   shifts: Record<string, ShiftType>
   punches: Punch[]
   manual?: Partial<ManualFields>
+  /** Instant du calcul : les gardes pas encore commencées ne sont pas comptées */
+  now?: number
 }) {
+  const nowMs = params.now ?? Date.now()
   const { employee, period, settings, entries, shifts, punches } = params
   const manual: ManualFields = {
     bonus: 0,
@@ -123,9 +132,12 @@ export function computePayslip(params: {
     other_note: null,
     ...params.manual,
   }
-  const base = Number(employee.base_salary) || 0
+  const mode = employee.pay_mode ?? 'monthly'
+  const rate = Number(employee.pay_rate) || 0
+  const monthly = Number(employee.base_salary) || 0
   const divisor = settings.absence_divisor || 30
-  const dayRate = base / divisor
+  // Valeur d'une garde de référence, selon le mode de paie
+  const dayRate = mode === 'per_shift' ? rate : mode === 'hourly' ? rate * settings.reference_shift_hours : monthly / divisor
 
   let planned = 0
   let worked = 0
@@ -136,10 +148,17 @@ export function computePayslip(params: {
   const lateDays: { date: string; minutes: number }[] = []
 
   const ins = punches.filter((p) => p.kind === 'in').map((p) => +new Date(p.punched_at))
+  const outs = punches.filter((p) => p.kind === 'out').map((p) => +new Date(p.punched_at))
+  let workedMinutes = 0
+  let upcoming = 0
 
   for (const e of entries) {
     const sh = shifts[e.shift_type_id]
     if (!sh) continue
+    if (conakryInstant(e.work_date, sh.start_time) > nowMs) {
+      upcoming++
+      continue
+    }
     planned++
     if (e.status === 'absent') {
       if (e.absence_kind === 'injustifiee') unjustified++
@@ -154,7 +173,13 @@ export function computePayslip(params: {
         unjustified++
         continue
       }
+      workedMinutes += shiftMinutes(sh) // payé comme prévu
     } else {
+      // Temps réellement passé sur la garde (borné aux horaires prévus)
+      const departure = outs.filter((t) => t > arrival && t <= end + 4 * 3600e3).sort((a, b) => a - b)[0]
+      const from = Math.max(arrival, start)
+      const to = Math.min(departure ?? end, end)
+      workedMinutes += Math.max(0, Math.round((to - from) / 60000))
       const late = Math.floor((arrival - start) / 60000)
       if (late > LATE_GRACE_MIN) {
         lateMinutes += late
@@ -165,8 +190,13 @@ export function computePayslip(params: {
     if (isNight(sh)) nightShifts++
   }
 
-  const absenceDeduction = Math.round(unjustified * dayRate)
-  const billableLate = settings.late_deduction ? Math.max(0, lateMinutes - settings.late_tolerance_min) : 0
+  const workedHours = Math.round((workedMinutes / 60) * 100) / 100
+  // Salaire de base gagné ce mois
+  const base = mode === 'per_shift' ? Math.round(rate * worked) : mode === 'hourly' ? Math.round(rate * workedHours) : monthly
+  // Au mois, une absence injustifiée est retirée du salaire. À la garde ou à l'heure, elle n'est simplement pas payée.
+  const absenceDeduction = mode === 'monthly' ? Math.round(unjustified * dayRate) : 0
+  // À l'heure, le retard est déjà déduit des heures payées
+  const billableLate = settings.late_deduction && mode !== 'hourly' ? Math.max(0, lateMinutes - settings.late_tolerance_min) : 0
   const lateDeduction = Math.round((billableLate * dayRate) / (settings.reference_shift_hours * 60))
   const nightBonus = Math.round(nightShifts * (Number(settings.night_bonus) || 0))
   const years = seniorityYears(employee.hire_date, period)
@@ -180,6 +210,9 @@ export function computePayslip(params: {
   return {
     employee_id: employee.id,
     base_salary: base,
+    pay_mode: mode,
+    pay_rate: mode === 'monthly' ? monthly : rate,
+    worked_hours: workedHours,
     shifts_planned: planned,
     shifts_worked: worked,
     shifts_unpunched: unpunched,
@@ -194,7 +227,7 @@ export function computePayslip(params: {
     ...manual,
     gross,
     net,
-    details: { late_days: lateDays, billable_late_minutes: billableLate, seniority_pct: seniorityPct, day_rate: Math.round(dayRate) },
+    details: { upcoming_shifts: upcoming, late_days: lateDays, billable_late_minutes: billableLate, seniority_pct: seniorityPct, day_rate: Math.round(dayRate) },
   }
 }
 
@@ -256,4 +289,13 @@ export function numberToWords(value: number): string {
   }
   if (n) parts.push(below1000(n))
   return parts.join(' ')
+}
+
+/** Libellé de la ligne « salaire de base » d'un bulletin selon le mode de paie */
+export function baseLabel(p: Pick<Payslip, 'pay_mode' | 'pay_rate' | 'shifts_worked' | 'worked_hours'>) {
+  const gnf = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 })
+  const h = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 })
+  if (p.pay_mode === 'per_shift') return { label: 'Gardes effectuées', sub: `${p.shifts_worked} × ${gnf.format(Number(p.pay_rate))} GNF` }
+  if (p.pay_mode === 'hourly') return { label: 'Heures travaillées', sub: `${h.format(Number(p.worked_hours))} h × ${gnf.format(Number(p.pay_rate))} GNF` }
+  return { label: 'Salaire de base', sub: 'Mensuel' }
 }

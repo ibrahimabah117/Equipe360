@@ -95,8 +95,11 @@ function seed() {
   db.employees = people.map(([full_name, phone, job_title, base_salary, hire_date], i) => ({
     id: `d3m0-emp-${i}`, company_id: CID, full_name, phone, job_title, base_salary, hire_date,
     default_site_id: db.sites[i % 4].id, active: true, created_at: now,
+    // Quelques agents payés à la garde ou à l'heure
+    pay_mode: i === 6 || i === 10 ? 'per_shift' : i === 11 ? 'hourly' : 'monthly',
+    pay_rate: i === 6 || i === 10 ? 60000 : i === 11 ? 5000 : 0,
   }))
-  db.employees.push({ id: 'd3m0-emp-x', company_id: CID, full_name: 'Bangaly Fofana', phone: '224622119900', job_title: 'Agent de sécurité', base_salary: 1500000, hire_date: '2020-05-01', default_site_id: null, active: false, created_at: now })
+  db.employees.push({ id: 'd3m0-emp-x', company_id: CID, full_name: 'Bangaly Fofana', phone: '224622119900', job_title: 'Agent de sécurité', base_salary: 1500000, pay_mode: 'monthly', pay_rate: 0, hire_date: '2020-05-01', default_site_id: null, active: false, created_at: now })
 
   const memberOf = (role: DemoRole, empIdx: number | null, user_id = USERS[role].id) => {
     const e = empIdx == null ? null : db.employees[empIdx]
@@ -198,7 +201,7 @@ function seed() {
     const r = computePayslip({
       employee: emp as any, period: firstPrev, settings,
       entries: db.schedule_entries.filter((x) => x.employee_id === emp.id && x.work_date >= firstPrev && x.work_date <= pend) as any,
-      shifts, punches: db.punches.filter((p) => p.employee_id === emp.id && p.kind === 'in') as any,
+      shifts, punches: db.punches.filter((p) => p.employee_id === emp.id) as any,
       manual: i === 2 ? { bonus: 150000, bonus_note: 'Prime de fin de mois' } : i === 6 ? { advance: 300000 } : undefined,
     })
     return { id: uid(), run_id: runId, company_id: CID, ...r, created_at: now, updated_at: now }
@@ -219,7 +222,7 @@ const UNIQUE: Record<string, string[][]> = {
 
 const DEFAULTS: Record<string, () => Row> = {
   sites: () => ({ radius_m: 150, qr_token: tok(), active: true, latitude: null, longitude: null, zone: null, address: null }),
-  employees: () => ({ active: true, base_salary: 0, hire_date: null, job_title: null, phone: null, default_site_id: null }),
+  employees: () => ({ active: true, base_salary: 0, pay_mode: 'monthly', pay_rate: 0, hire_date: null, job_title: null, phone: null, default_site_id: null }),
   schedule_entries: () => ({ status: 'planned', replaces_employee_id: null, absence_kind: null, note: null }),
   payroll_runs: () => ({ status: 'draft', settings: {}, validated_at: null, validated_by: null }),
   payslips: () => ({ bonus: 0, advance: 0, other_deduction: 0, bonus_note: null, other_note: null, details: {} }),
