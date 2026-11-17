@@ -119,7 +119,7 @@ export function AppShell({
   const multiCompany = isAdmin || memberships.length > 1
 
   const sidebar = (
-    <div className="flex h-full flex-col bg-ink-900 text-white">
+    <div className="e360-sidebar flex h-full flex-col bg-ink-900 text-white">
       <div className="flex h-16 items-center justify-between px-5">
         <Link to="/">
           <Logo dark />

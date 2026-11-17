@@ -9,7 +9,7 @@ export function LogoMark({ className }: { className?: string }) {
         cy="256"
         r="150"
         fill="none"
-        stroke="#2E5BFF"
+        stroke="#C8F169"
         strokeWidth="34"
         strokeDasharray="700 242"
         strokeLinecap="round"
