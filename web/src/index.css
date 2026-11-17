@@ -57,3 +57,121 @@ body {
   .no-print { display: none !important; }
   body { background: white; }
 }
+
+/* ------------------------------------------------------------------
+   Thèmes de design (propositions) — activés par une classe sur <html>.
+   theme-a : sombre premium · theme-b : clair « bento ».
+   Sans classe, l’apparence actuelle est inchangée.
+------------------------------------------------------------------- */
+@media screen {
+  /* ===== A — Sombre premium ===== */
+  html.theme-a {
+    color-scheme: dark;
+    --color-ink-50: #0b0e16;
+    --color-ink-100: #1a2030;
+    --color-ink-200: #242c3d;
+    --color-ink-300: #343d52;
+    --color-ink-400: #6b7489;
+    --color-ink-500: #8b93a7;
+    --color-ink-600: #a8b0c2;
+    --color-ink-700: #c4cad8;
+    --color-ink-800: #dce0ea;
+    --color-ink-900: #eef0f5;
+    --color-ink-950: #000000;
+
+    --color-brand-50: rgb(200 241 105 / 0.08);
+    --color-brand-100: rgb(200 241 105 / 0.14);
+    --color-brand-200: rgb(200 241 105 / 0.24);
+    --color-brand-300: #a9cf52;
+    --color-brand-400: #b8e35c;
+    --color-brand-500: #c8f169;
+    --color-brand-600: #d4f685;
+    --color-brand-700: #dcf99a;
+    --color-brand-800: #e6fbb6;
+    --color-brand-900: #f0fdd2;
+
+    --color-red-50: rgb(248 113 113 / 0.1);
+    --color-red-100: rgb(248 113 113 / 0.2);
+    --color-red-600: #f87171;
+    --color-red-700: #fca5a5;
+    --color-red-800: #fecaca;
+    --color-emerald-50: rgb(52 211 153 / 0.1);
+    --color-emerald-100: rgb(52 211 153 / 0.2);
+    --color-emerald-600: #34d399;
+    --color-emerald-700: #6ee7b7;
+    --color-emerald-800: #a7f3d0;
+    --color-emerald-900: #d1fae5;
+    --color-amber-50: rgb(251 191 36 / 0.1);
+    --color-amber-100: rgb(251 191 36 / 0.2);
+    --color-amber-600: #fbbf24;
+    --color-amber-700: #fcd34d;
+    --color-amber-800: #fde68a;
+    --color-amber-900: #fef3c7;
+
+    --shadow-card: 0 0 0 transparent;
+    --shadow-pop: 0 24px 60px -12px rgb(0 0 0 / 0.6);
+  }
+  html.theme-a body { background: #07090f; color: #e7eaf0; }
+  html.theme-a .bg-white { background-color: #0f131c; }
+  html.theme-a .bg-white\/85 { background-color: rgb(11 14 22 / 0.85); }
+  html.theme-a .bg-ink-900 { background-color: #141a26; }
+  html.theme-a .hover\:bg-ink-800:hover { background-color: #1d2535; }
+  html.theme-a .bg-ink-950 { background-color: #07090f; }
+  html.theme-a .bg-ink-950\/40, html.theme-a .bg-ink-950\/50 { background-color: rgb(0 0 0 / 0.6); }
+  html.theme-a .e360-sidebar { background: #0b0e16; border-right: 1px solid #161b26; }
+  /* Texte foncé sur l’accent citron */
+  html.theme-a .bg-brand-500, html.theme-a .bg-brand-600, html.theme-a .hover\:bg-brand-600:hover { color: #07090f; }
+  html.theme-a .bg-red-600 { color: #1a0505; }
+  html.theme-a .text-amber-50 { color: #fffbeb; }
+  html.theme-a h1, html.theme-a h2, html.theme-a h3, html.theme-a .text-\[26px\] {
+    font-family: 'Space Grotesk Variable', 'Inter Variable', sans-serif;
+    letter-spacing: -0.02em;
+  }
+  html.theme-a h1 { font-size: 1.75rem; }
+  html.theme-a .rounded-2xl { border-radius: 1.125rem; }
+
+  /* ===== B — Clair « bento » ===== */
+  html.theme-b {
+    --font-sans: 'Plus Jakarta Sans Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+    --color-ink-50: #f4f5f7;
+    --color-ink-100: #e8eaee;
+    --color-ink-200: #dcdfe5;
+    --color-ink-300: #c3c8d2;
+    --color-ink-400: #94a3b8;
+    --color-ink-500: #64748b;
+    --color-ink-600: #475569;
+    --color-ink-700: #334155;
+    --color-ink-800: #1e293b;
+    --color-ink-900: #0f172a;
+    --color-ink-950: #020617;
+
+    --color-brand-50: #eef2ff;
+    --color-brand-100: #e0e7ff;
+    --color-brand-200: #c7d2fe;
+    --color-brand-300: #a5b4fc;
+    --color-brand-400: #818cf8;
+    --color-brand-500: #4f46e5;
+    --color-brand-600: #4338ca;
+    --color-brand-700: #3730a3;
+    --color-brand-800: #312e81;
+    --color-brand-900: #1e1b4b;
+
+    --shadow-card: 0 0 0 transparent;
+  }
+  html.theme-b body { font-family: var(--font-sans); background: #f4f5f7; }
+  html.theme-b .rounded-2xl { border-radius: 1.5rem; }
+  html.theme-b .rounded-xl { border-radius: 0.875rem; }
+  html.theme-b h1 { font-weight: 800; letter-spacing: -0.035em; font-size: 1.75rem; }
+  html.theme-b h2, html.theme-b h3 { font-weight: 700; }
+  html.theme-b .text-\[26px\] { font-weight: 800; font-size: 2rem; letter-spacing: -0.04em; }
+  /* Barre latérale blanche */
+  html.theme-b .e360-sidebar { background: #ffffff; color: #0f172a; border-right: 1px solid #e8eaee; }
+  html.theme-b .e360-sidebar [class*='text-white'] { color: #64748b; }
+  html.theme-b .e360-sidebar .text-white { color: #0f172a; }
+  html.theme-b .e360-sidebar .bg-white\/5 { background-color: #f4f5f7; }
+  html.theme-b .e360-sidebar .bg-white\/10 { background-color: #eef2ff; color: #3730a3; box-shadow: none; }
+  html.theme-b .e360-sidebar [class*='hover:bg-white']:hover { background-color: #f4f5f7; color: #0f172a; }
+  html.theme-b .e360-sidebar [class*='ring-white'] { --tw-ring-color: #e8eaee; }
+  html.theme-b .e360-sidebar .border-white\/10 { border-color: #e8eaee; }
+  html.theme-b .e360-sidebar .bg-brand-500 { color: #ffffff; }
+}
