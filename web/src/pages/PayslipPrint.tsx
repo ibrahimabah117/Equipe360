@@ -68,6 +68,7 @@ export default function PayslipPrint() {
           const site = e?.default_site_id ? sites[e.default_site_id] : undefined
           const gains: [string, string, number][] = [
             [baseLabel(s).label, baseLabel(s).sub, Number(s.base_salary)],
+            ...(Number(s.overtime_pay) ? [['Heures supplémentaires', `${new Intl.NumberFormat('fr-FR').format(Number(s.overtime_hours))} h`, Number(s.overtime_pay)] as [string, string, number]] : []),
             ...(Number(s.night_bonus) ? [['Prime de nuit', `${s.night_shifts} nuit${s.night_shifts > 1 ? 's' : ''} × ${formatGNF(settings.night_bonus)}`, Number(s.night_bonus)] as [string, string, number]] : []),
             ...(Number(s.seniority_bonus) ? [['Prime d’ancienneté', `${s.seniority_years} an${s.seniority_years > 1 ? 's' : ''}`, Number(s.seniority_bonus)] as [string, string, number]] : []),
             ...(Number(s.bonus) ? [['Prime exceptionnelle', s.bonus_note ?? '', Number(s.bonus)] as [string, string, number]] : []),

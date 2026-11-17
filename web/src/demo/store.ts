@@ -99,8 +99,9 @@ function seed() {
     // Quelques agents payés à la garde ou à l'heure
     pay_mode: i === 6 || i === 10 ? 'per_shift' : i === 11 ? 'hourly' : 'monthly',
     pay_rate: i === 6 || i === 10 ? 60000 : i === 11 ? 5000 : 0,
+    badge_token: tok(),
   }))
-  db.employees.push({ id: 'd3m0-emp-x', company_id: CID, full_name: 'Bangaly Fofana', phone: '224622119900', job_title: 'Agent de sécurité', base_salary: 1500000, pay_mode: 'monthly', pay_rate: 0, hire_date: '2020-05-01', default_site_id: null, active: false, created_at: now })
+  db.employees.push({ id: 'd3m0-emp-x', company_id: CID, full_name: 'Bangaly Fofana', phone: '224622119900', job_title: 'Agent de sécurité', base_salary: 1500000, pay_mode: 'monthly', pay_rate: 0, badge_token: tok(), hire_date: '2020-05-01', default_site_id: null, active: false, created_at: now })
 
   const memberOf = (role: DemoRole, empIdx: number | null, user_id = USERS[role].id) => {
     const e = empIdx == null ? null : db.employees[empIdx]
@@ -223,10 +224,10 @@ const UNIQUE: Record<string, string[][]> = {
 
 const DEFAULTS: Record<string, () => Row> = {
   sites: () => ({ radius_m: 150, qr_token: tok(), active: true, latitude: null, longitude: null, zone: null, address: null }),
-  employees: () => ({ active: true, base_salary: 0, pay_mode: 'monthly', pay_rate: 0, hire_date: null, job_title: null, phone: null, default_site_id: null }),
+  employees: () => ({ active: true, base_salary: 0, pay_mode: 'monthly', pay_rate: 0, badge_token: tok(), hire_date: null, job_title: null, phone: null, default_site_id: null }),
   schedule_entries: () => ({ status: 'planned', replaces_employee_id: null, absence_kind: null, note: null }),
   payroll_runs: () => ({ status: 'draft', settings: {}, validated_at: null, validated_by: null }),
-  payslips: () => ({ bonus: 0, advance: 0, other_deduction: 0, bonus_note: null, other_note: null, details: {} }),
+  payslips: () => ({ overtime_hours: 0, overtime_pay: 0, bonus: 0, advance: 0, other_deduction: 0, bonus_note: null, other_note: null, details: {} }),
 }
 
 /* ------------------------------------------------------------------ Requêtes REST (format PostgREST) */

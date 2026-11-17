@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import writeExcelFile from 'write-excel-file/browser'
-import { Download, KeyRound, MoreHorizontal, Pencil, Plus, Power, Search, Upload, UserPlus, Users } from 'lucide-react'
+import { Download, IdCard, KeyRound, RefreshCcw, MoreHorizontal, Pencil, Plus, Power, Search, Upload, UserPlus, Users } from 'lucide-react'
 import { errorMessage, supabase, type Employee, type PayMode, type Site } from '../lib/supabase'
 import { useCompany } from '../lib/company'
 import { PAY_MODE_LABELS, PAY_MODE_UNIT } from '../lib/payroll'
@@ -91,6 +91,14 @@ export default function Employees() {
     load()
   }
 
+  async function newBadge(e: Employee) {
+    setMenu(null)
+    const { error } = await supabase.from('employees').update({ badge_token: crypto.randomUUID().replace(/-/g, '') }).eq('id', e.id)
+    if (error) return toast.error(errorMessage(error))
+    toast.success(`Nouveau badge pour ${e.full_name} : l’ancien ne fonctionne plus. Pensez à l’imprimer.`)
+    load()
+  }
+
   async function exportExcel() {
     const rows = (employees ?? []).filter((e) => e.active)
     await writeExcelFile(
@@ -119,6 +127,9 @@ export default function Employees() {
             <Button variant="secondary" icon={Download} onClick={exportExcel} disabled={!counts.active}>
               Exporter
             </Button>
+            <Link to={`/c/${company.id}/badges`}>
+              <Button variant="secondary" icon={IdCard} disabled={!counts.active}>Badges</Button>
+            </Link>
             <Button variant="secondary" icon={Upload} onClick={() => setImporting(true)}>
               Importer Excel
             </Button>
@@ -239,6 +250,7 @@ export default function Employees() {
                           hasAccess={withAccess.has(e.id)}
                           onEdit={() => { setMenu(null); setEditing(e) }}
                           onToggle={() => toggleActive(e)}
+                          onNewBadge={() => newBadge(e)}
                         />
                       </Td>
                     </tr>
@@ -296,6 +308,7 @@ function RowMenu({
   hasAccess,
   onEdit,
   onToggle,
+  onNewBadge,
 }: {
   open: boolean
   onOpen: () => void
@@ -305,6 +318,7 @@ function RowMenu({
   hasAccess: boolean
   onEdit: () => void
   onToggle: () => void
+  onNewBadge: () => void
 }) {
   return (
     <div className="relative">
@@ -319,6 +333,12 @@ function RowMenu({
                 <MenuItem icon={KeyRound}>Donner un accès</MenuItem>
               </Link>
             )}
+            {employee.active && (
+              <Link to={`/c/${companyId}/badges?e=${employee.id}`}>
+                <MenuItem icon={IdCard}>Imprimer le badge</MenuItem>
+              </Link>
+            )}
+            {employee.active && <MenuItem icon={RefreshCcw} onClick={onNewBadge}>Nouveau badge (perte)</MenuItem>}
             <MenuItem icon={Power} onClick={onToggle} danger={employee.active}>
               {employee.active ? 'Désactiver' : 'Réactiver'}
             </MenuItem>

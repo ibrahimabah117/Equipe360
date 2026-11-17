@@ -45,3 +45,13 @@ eq([ph2.worked_hours, ph2.base_salary], [10, 100000], 'hourly early leave')
 // Gardes futures non comptées
 const pf = computePayslip({ employee: { ...emp, pay_mode: 'per_shift', pay_rate: 60000 } as any, period: '2026-11-01', settings: DEFAULT_SETTINGS, entries, shifts: shifts as any, punches, now: Date.UTC(2026, 10, 6) })
 eq([pf.shifts_planned, pf.shifts_worked, pf.base_salary], [4, 4, 240000], 'future shifts excluded')
+// Heures supplémentaires : semaine du 2 au 8 nov = 715+660+675+720 min = 46,17 h → 6,17 h au-delà de 40 h
+const otSet = { ...DEFAULT_SETTINGS, overtime_enabled: true }
+const po = computePayslip({ employee: emp as any, period: '2026-11-01', settings: otSet, entries, shifts: shifts as any, punches })
+const hourlyM = 1500000 / 173.33
+eq([po.overtime_hours, po.overtime_pay], [6.17, Math.round((2770 / 60 - 40) * hourlyM * 1.25)], 'overtime monthly (125 %)')
+// Paliers : seuil 40 h, 2 h à +25 %, le reste à +50 % ; à la garde, seule la majoration s'ajoute
+const po2 = computePayslip({ employee: { ...emp, pay_mode: 'per_shift', pay_rate: 60000 } as any, period: '2026-11-01', settings: { ...otSet, overtime_tier1_hours: 2 }, entries, shifts: shifts as any, punches })
+const h = 60000 / 12, x = 2770 / 60 - 40
+eq(po2.overtime_pay, Math.round(h * (2 * 0.25 + (x - 2) * 0.5)), 'overtime tiers per shift (majoration seule)')
+eq(computePayslip({ employee: emp as any, period: '2026-11-01', settings: DEFAULT_SETTINGS, entries, shifts: shifts as any, punches }).overtime_pay, 0, 'overtime off by default')
