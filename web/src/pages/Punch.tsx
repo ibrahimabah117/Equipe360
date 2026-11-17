@@ -18,6 +18,8 @@ import {
   WifiOff,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
+import { DEMO } from '../lib/supabase'
+import { demoSites } from '../demo/store'
 import { supabase, type Employee } from '../lib/supabase'
 import { cacheGet, cacheSet, getLast, isNetworkError, submitPunch, syncQueue, useOnline, usePunchQueue, type PunchResult } from '../lib/offline'
 import { timeAt, TZ } from '../lib/dates'
@@ -78,7 +80,48 @@ function PunchHeader() {
 
 /* ------------------------------------------------------------------ Scanner */
 
+function DemoScan() {
+  const navigate = useNavigate()
+  return (
+    <div className="flex min-h-full flex-col bg-ink-950 text-white">
+      <div className="bg-white text-ink-900">
+        <PunchHeader />
+      </div>
+      <div className="mx-auto w-full max-w-sm flex-1 p-5">
+        <div className="relative mx-auto flex aspect-square w-full items-center justify-center overflow-hidden rounded-3xl bg-black ring-1 ring-white/10">
+          <div className="absolute inset-8 rounded-2xl ring-4 ring-white/80" />
+          <div className="absolute inset-x-8 top-1/2 h-0.5 animate-pulse bg-brand-400" />
+          <QrCode className="size-16 text-white/20" />
+        </div>
+        <p className="mt-6 text-center text-sm text-white/70">
+          Démo : sur un vrai téléphone, la caméra s’ouvre ici. Touchez un site pour simuler le scan de son QR code.
+        </p>
+        <div className="mt-4 space-y-2">
+          {demoSites().map((s) => (
+            <button
+              key={s.token}
+              onClick={() => navigate(`/p/${s.token}`)}
+              className="flex w-full items-center gap-3 rounded-2xl bg-white/[0.06] px-4 py-3 text-left ring-1 ring-white/10 hover:bg-white/10"
+            >
+              <MapPin className="size-5 text-brand-300" />
+              <span className="flex-1">
+                <span className="block font-medium">{s.name}</span>
+                <span className="block text-xs text-white/50">{s.zone}</span>
+              </span>
+              <ScanLine className="size-4 text-white/40" />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ScanPage() {
+  return DEMO ? <DemoScan /> : <CameraScan />
+}
+
+function CameraScan() {
   const navigate = useNavigate()
   const video = useRef<HTMLVideoElement>(null)
   const [error, setError] = useState<string | null>(null)

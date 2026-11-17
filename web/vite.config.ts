@@ -3,11 +3,13 @@ import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  // La démo est un site autonome (chemins relatifs, sans installation hors ligne)
+  base: mode === 'demo' ? './' : '/',
   plugins: [
     react(),
     tailwindcss(),
-    VitePWA({
+    mode !== 'demo' && VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
       manifest: {
@@ -31,4 +33,4 @@ export default defineConfig({
       },
     }),
   ],
-})
+}))

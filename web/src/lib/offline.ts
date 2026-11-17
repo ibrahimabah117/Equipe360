@@ -64,7 +64,11 @@ function read(key: string): QueuedPunch[] {
   }
 }
 function write(key: string, list: QueuedPunch[]) {
-  localStorage.setItem(key, JSON.stringify(list))
+  try {
+    localStorage.setItem(key, JSON.stringify(list))
+  } catch {
+    /* stockage indisponible */
+  }
   emit()
 }
 
@@ -167,7 +171,11 @@ interface LastPunch {
 
 function rememberLast(p: QueuedPunch) {
   const k = PREFIX + 'last.' + (p.employee_id ?? 'me')
-  localStorage.setItem(k, JSON.stringify({ kind: p.kind, at: p.punched_at, site_name: p.site_name }))
+  try {
+    localStorage.setItem(k, JSON.stringify({ kind: p.kind, at: p.punched_at, site_name: p.site_name }))
+  } catch {
+    /* stockage indisponible */
+  }
 }
 
 export function getLast(employeeId: string | null): LastPunch | null {

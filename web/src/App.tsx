@@ -1,11 +1,16 @@
 import { lazy, Suspense, type ReactNode } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
+import { BrowserRouter, HashRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { AuthProvider, useAuth } from './lib/auth'
 import { CompanyProvider, useCompany } from './lib/company'
 import { AppShell } from './layout/AppShell'
 import { PageLoader, Spinner, ToastProvider } from './ui'
 import { LogoMark } from './ui/Logo'
-import Login from './pages/Login'
+import RealLogin from './pages/Login'
+import DemoLogin, { DemoBar } from './demo/DemoLogin'
+import { DEMO } from './lib/supabase'
+
+const Login = DEMO ? DemoLogin : RealLogin
+const Router_ = DEMO ? HashRouter : BrowserRouter
 const AdminClients = lazy(() => import('./pages/AdminClients'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Employees = lazy(() => import('./pages/Employees'))
@@ -82,6 +87,8 @@ function Router() {
   }
 
   return (
+    <>
+    {DEMO && <DemoBar />}
     <Routes>
       <Route path="/" element={<Home />} />
       <Route
@@ -93,17 +100,18 @@ function Router() {
       <Route path="/scan" element={<Suspense fallback={<Splash />}><ScanPage /></Suspense>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   )
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <Router_>
       <AuthProvider>
         <ToastProvider>
           <Router />
         </ToastProvider>
       </AuthProvider>
-    </BrowserRouter>
+    </Router_>
   )
 }
