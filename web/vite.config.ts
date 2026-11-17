@@ -2,6 +2,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { viteSingleFile } from 'vite-plugin-singlefile'
 
 export default defineConfig(({ mode }) => ({
   // La démo est un site autonome (chemins relatifs, sans installation hors ligne)
@@ -9,6 +10,8 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     tailwindcss(),
+    // Démo : un seul fichier HTML (scripts, styles et polices inclus)
+    mode === 'demo' && viteSingleFile(),
     mode !== 'demo' && VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
