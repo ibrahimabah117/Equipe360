@@ -4,7 +4,7 @@ import { AlertTriangle, ArrowRight, CalendarCheck2, CalendarDays, Check, KeyRoun
 import { addDays, conakryInstant, dayLong, today } from '../lib/dates'
 import { supabase } from '../lib/supabase'
 import { useCompany } from '../lib/company'
-import { formatDate, sectorLabel } from '../lib/format'
+import { formatDate, formatGNF, isTrial, sectorLabel } from '../lib/format'
 import { Badge, Card, cx, PageHeader, PageLoader, StatCard } from '../ui'
 
 interface Stats {
@@ -140,13 +140,15 @@ export default function Dashboard() {
           <Card className="overflow-hidden">
             <div className="bg-ink-900 p-5 text-white">
               <p className="text-xs font-medium tracking-wide text-white/50 uppercase">Abonnement</p>
-              <p className="mt-1 text-lg font-semibold">Équipe360 Pro</p>
+              <p className="mt-1 text-lg font-semibold">{isTrial(company) ? 'Mois d’essai gratuit' : 'Équipe360 Pro'}</p>
               <p className="mt-3 text-sm text-white/70">
                 {company.paid_until ? <>Valable jusqu’au <span className="font-medium text-white">{formatDate(company.paid_until)}</span></> : 'Échéance non définie'}
               </p>
             </div>
             <div className="p-5 text-sm text-ink-600">
-              Pour renouveler, contactez l’équipe Équipe360 sur WhatsApp.
+              {isTrial(company)
+                ? `Ensuite ${formatGNF(company.monthly_price)} par mois. Pour continuer, contactez l’équipe Équipe360 sur WhatsApp.`
+                : 'Pour renouveler, contactez l’équipe Équipe360 sur WhatsApp.'}
             </div>
           </Card>
 

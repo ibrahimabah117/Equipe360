@@ -22,6 +22,7 @@ export const supabase = createClient(url, key, {
 })
 
 export type Role = 'owner' | 'manager' | 'agent'
+export type PayMode = 'monthly' | 'per_shift' | 'hourly'
 
 export interface Company {
   id: string
@@ -57,6 +58,9 @@ export interface Employee {
   job_title: string | null
   default_site_id: string | null
   base_salary: number
+  /** monthly = salaire mensuel ; per_shift = tarif par garde ; hourly = tarif horaire */
+  pay_mode: PayMode
+  pay_rate: number
   hire_date: string | null
   active: boolean
   created_at: string

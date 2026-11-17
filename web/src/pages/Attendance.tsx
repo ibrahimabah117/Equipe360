@@ -93,7 +93,8 @@ export default function Attendance() {
     const from = new Date(conakryInstant(date, '00:00') - 4 * 3600e3).toISOString()
     const to = new Date(conakryInstant(addDays(date, 1), '14:00')).toISOString()
     const [en, pu, em, si, sh, me] = await Promise.all([
-      supabase.from('schedule_entries').select('*').eq('company_id', company.id).eq('work_date', date),
+      // La veille aussi : les agents de nuit d'hier quittent leur poste ce matin
+      supabase.from('schedule_entries').select('*').eq('company_id', company.id).gte('work_date', addDays(date, -1)).lte('work_date', date),
       supabase.from('punches').select('*').eq('company_id', company.id).gte('punched_at', from).lte('punched_at', to).order('punched_at'),
       supabase.from('employees').select('*').eq('company_id', company.id).order('full_name'),
       supabase.from('sites').select('*').eq('company_id', company.id).order('name'),
@@ -144,13 +145,14 @@ export default function Attendance() {
     for (const entry of data.entries) {
       const sh = shift[entry.shift_type_id]
       if (!sh) continue
-      const start = conakryInstant(date, sh.start_time)
+      const start = conakryInstant(entry.work_date, sh.start_time)
       const end = start + shiftHours(sh) * 3600e3
       const mine = data.punches.filter((p) => p.employee_id === entry.employee_id)
       const arrival = mine.find((p) => p.kind === 'in' && +new Date(p.punched_at) >= start - 3 * 3600e3 && +new Date(p.punched_at) <= end) ?? null
       const departure = [...mine].reverse().find((p) => p.kind === 'out' && +new Date(p.punched_at) >= start && +new Date(p.punched_at) <= end + 4 * 3600e3) ?? null
       if (arrival) used.add(arrival.id)
       if (departure) used.add(departure.id)
+      if (entry.work_date !== date) continue // garde de la veille : sert seulement à rattacher ses pointages
       const lateMin = arrival ? (+new Date(arrival.punched_at) - start) / 60000 : 0
       const earlyMin = departure ? (end - +new Date(departure.punched_at)) / 60000 : 0
       let state: RowState

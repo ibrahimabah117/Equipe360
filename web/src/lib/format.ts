@@ -69,3 +69,9 @@ export const ROLE_LABELS: Record<string, string> = {
   manager: 'Responsable',
   agent: 'Agent',
 }
+
+/** Mois d'essai gratuit : marqué dans la note interne de l'abonnement */
+export const TRIAL_NOTE = 'Mois d’essai gratuit'
+export function isTrial(c: { admin_note: string | null }): boolean {
+  return (c.admin_note ?? '').startsWith(TRIAL_NOTE)
+}

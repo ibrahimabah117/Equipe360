@@ -14,6 +14,7 @@ interface ParsedRow {
   job_title: string | null
   site: string | null
   base_salary: number
+  pay_mode: 'monthly' | 'per_shift' | 'hourly'
   error: string | null
   update: boolean
 }
@@ -26,12 +27,20 @@ const norm = (s: unknown) =>
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
 
-const COLS: Record<keyof Pick<ParsedRow, 'full_name' | 'phoneRaw' | 'job_title' | 'site' | 'base_salary'>, string[]> = {
+const COLS: Record<keyof Pick<ParsedRow, 'full_name' | 'phoneRaw' | 'job_title' | 'site' | 'base_salary' | 'pay_mode'>, string[]> = {
+  pay_mode: ['mode de paie', 'mode', 'type de paie', 'paiement', 'mode de paiement'],
   full_name: ['nom complet', 'nom et prenom', 'nom prenom', 'prenom nom', 'nom', 'name', 'full name', 'employe', 'agent'],
   phoneRaw: ['telephone', 'tel', 'phone', 'numero', 'contact', 'portable'],
   job_title: ['poste', 'fonction', 'emploi', 'job', 'titre'],
   site: ['site', 'lieu', 'affectation', 'poste de garde', 'client'],
-  base_salary: ['salaire de base gnf', 'salaire de base', 'salaire', 'salaire gnf', 'remuneration', 'paie'],
+  base_salary: ['montant gnf', 'montant', 'tarif', 'salaire de base gnf', 'salaire de base', 'salaire', 'salaire gnf', 'remuneration', 'paie'],
+}
+
+function parseMode(v: unknown): ParsedRow['pay_mode'] {
+  const t = norm(v)
+  if (t.includes('garde') || t.includes('vacation') || t.includes('jour')) return 'per_shift'
+  if (t.includes('heure') || t.includes('horaire')) return 'hourly'
+  return 'monthly'
 }
 
 function parseNumber(v: unknown): number {
@@ -43,11 +52,13 @@ function parseNumber(v: unknown): number {
 export async function downloadTemplate() {
   await writeExcelFile(
     [
-      ['Nom complet', 'Téléphone', 'Poste', 'Site', 'Salaire de base (GNF)'].map((v) => ({ value: v, fontWeight: 'bold' as const })),
-      [{ value: 'Ibrahima Sow' }, { value: '622 12 34 56' }, { value: 'Agent de sécurité' }, { value: 'Banque Centrale - Kaloum' }, { value: 1500000 }],
-      [{ value: 'Mariama Camara' }, { value: '655 98 76 54' }, { value: 'Chef de poste' }, { value: 'Ambassade - Ratoma' }, { value: 2200000 }],
+      ['Nom complet', 'Téléphone', 'Poste', 'Site', 'Mode de paie', 'Montant (GNF)'].map((v) => ({ value: v, fontWeight: 'bold' as const })),
+      [{ value: 'Ibrahima Sow' }, { value: '622 12 34 56' }, { value: 'Agent de sécurité' }, { value: 'Banque Centrale - Kaloum' }, { value: 'Mois' }, { value: 1500000 }],
+      [{ value: 'Mariama Camara' }, { value: '655 98 76 54' }, { value: 'Chef de poste' }, { value: 'Ambassade - Ratoma' }, { value: 'Mois' }, { value: 2200000 }],
+      [{ value: 'Sékou Keita' }, { value: '664 00 33 21' }, { value: 'Agent de sécurité' }, { value: 'Entrepôt Matoto' }, { value: 'Garde' }, { value: 60000 }],
+      [{ value: 'Hawa Soumah' }, { value: '654 40 11 88' }, { value: 'Agent d’entretien' }, { value: 'Résidence Dixinn' }, { value: 'Heure' }, { value: 5000 }],
     ],
-    { columns: [{ width: 28 }, { width: 18 }, { width: 20 }, { width: 28 }, { width: 22 }] },
+    { columns: [{ width: 28 }, { width: 18 }, { width: 20 }, { width: 28 }, { width: 14 }, { width: 16 }] },
   ).toFile('modele-employes-equipe360.xlsx')
 }
 
@@ -136,6 +147,7 @@ export default function ImportEmployeesModal({
           job_title: String(get('job_title') ?? '').trim() || null,
           site: String(get('site') ?? '').trim() || null,
           base_salary: parseNumber(get('base_salary')),
+          pay_mode: parseMode(get('pay_mode')),
           error,
           update: !!phone && existingPhones.has(phone),
         })
@@ -169,7 +181,9 @@ export default function ImportEmployeesModal({
         phone: r.phone,
         job_title: r.job_title,
         default_site_id: r.site ? siteIds.get(norm(r.site)) ?? null : null,
-        base_salary: r.base_salary,
+        base_salary: r.pay_mode === 'monthly' ? r.base_salary : 0,
+        pay_mode: r.pay_mode,
+        pay_rate: r.pay_mode === 'monthly' ? 0 : r.base_salary,
         active: true,
       })
       const withPhone = valid.filter((r) => r.phone).map(toRow)
@@ -255,7 +269,7 @@ export default function ImportEmployeesModal({
               <FileSpreadsheet className="size-8 text-emerald-600" />
               <div>
                 <p className="text-sm font-medium">Modèle Excel</p>
-                <p className="text-xs text-ink-500">Nom complet · Téléphone · Poste · Site · Salaire</p>
+                <p className="text-xs text-ink-500">Nom · Téléphone · Poste · Site · Mode de paie (mois, garde, heure) · Montant</p>
               </div>
             </div>
             <Button variant="secondary" size="sm" onClick={downloadTemplate}>Télécharger</Button>
@@ -300,7 +314,10 @@ export default function ImportEmployeesModal({
                     <Td className="font-medium">{r.full_name || '—'}</Td>
                     <Td className="tabular">{r.phone ? formatPhone(r.phone) : r.phoneRaw || '—'}</Td>
                     <Td className="text-ink-600">{r.site ?? '—'}</Td>
-                    <Td className="tabular text-right">{formatGNF(r.base_salary)}</Td>
+                    <Td className="tabular text-right">
+                      {formatGNF(r.base_salary)}
+                      <span className="text-ink-400"> {r.pay_mode === 'per_shift' ? '/ garde' : r.pay_mode === 'hourly' ? '/ h' : '/ mois'}</span>
+                    </Td>
                     <Td>
                       {r.error ? <Badge tone="red">{r.error}</Badge> : r.update ? <Badge tone="brand">Mise à jour</Badge> : <Badge tone="green">Nouveau</Badge>}
                     </Td>
