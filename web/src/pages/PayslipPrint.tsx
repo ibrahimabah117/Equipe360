@@ -4,7 +4,7 @@ import { ArrowLeft, FileX, Printer } from 'lucide-react'
 import { supabase, type Employee, type Site } from '../lib/supabase'
 import { useCompany } from '../lib/company'
 import { formatDate, formatGNF, formatPhone, sectorLabel } from '../lib/format'
-import { DEFAULT_SETTINGS, numberToWords, periodLabel, type PayrollRun, type Payslip } from '../lib/payroll'
+import { baseLabel, DEFAULT_SETTINGS, numberToWords, periodLabel, type PayrollRun, type Payslip } from '../lib/payroll'
 import { Badge, Button, Card, EmptyState, PageLoader } from '../ui'
 import { LogoMark } from '../ui/Logo'
 
@@ -67,7 +67,7 @@ export default function PayslipPrint() {
           const e = emp[s.employee_id]
           const site = e?.default_site_id ? sites[e.default_site_id] : undefined
           const gains: [string, string, number][] = [
-            ['Salaire de base', 'Mensuel', Number(s.base_salary)],
+            [baseLabel(s).label, baseLabel(s).sub, Number(s.base_salary)],
             ...(Number(s.night_bonus) ? [['Prime de nuit', `${s.night_shifts} nuit${s.night_shifts > 1 ? 's' : ''} × ${formatGNF(settings.night_bonus)}`, Number(s.night_bonus)] as [string, string, number]] : []),
             ...(Number(s.seniority_bonus) ? [['Prime d’ancienneté', `${s.seniority_years} an${s.seniority_years > 1 ? 's' : ''}`, Number(s.seniority_bonus)] as [string, string, number]] : []),
             ...(Number(s.bonus) ? [['Prime exceptionnelle', s.bonus_note ?? '', Number(s.bonus)] as [string, string, number]] : []),

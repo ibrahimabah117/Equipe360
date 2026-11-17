@@ -33,3 +33,15 @@ eq(r.net, 1630000 - 50000 - 3125, 'net')
 const r2 = computePayslip({ employee: emp as any, period: '2026-11-01', settings: { ...DEFAULT_SETTINGS, unpunched_as_absence: true }, entries, shifts: shifts as any, punches, manual: { bonus: 100000, advance: 200000 } })
 eq([r2.unjustified_absences, r2.shifts_worked, r2.absence_deduction], [2, 4, 100000], 'unpunched as absence')
 eq(r2.net, 1500000 + 100000 - 100000 - 3125 - 200000, 'net with manual')
+// À la garde : 5 gardes faites × 60 000 ; absence non payée (pas de retenue) ; retard 45 min × 60 000 / 720
+const ps = computePayslip({ employee: { ...emp, pay_mode: 'per_shift', pay_rate: 60000 } as any, period: '2026-11-01', settings: DEFAULT_SETTINGS, entries, shifts: shifts as any, punches })
+eq([ps.base_salary, ps.absence_deduction, ps.late_deduction], [300000, 0, 3750], 'per shift')
+// À l'heure : heures réelles (retards déjà déduits), garde non pointée payée comme prévue
+const ph = computePayslip({ employee: { ...emp, pay_mode: 'hourly', pay_rate: 10000 } as any, period: '2026-11-01', settings: DEFAULT_SETTINGS, entries, shifts: shifts as any, punches })
+eq([ph.worked_hours, ph.base_salary, ph.late_deduction, ph.absence_deduction], [58.17, 581700, 0, 0], 'hourly')
+const P2 = (iso: string, kind: string) => ({ id: iso + kind, kind, punched_at: iso } as any)
+const ph2 = computePayslip({ employee: { ...emp, pay_mode: 'hourly', pay_rate: 10000 } as any, period: '2026-11-01', settings: DEFAULT_SETTINGS, entries: [mk('2026-11-02', 'j')], shifts: shifts as any, punches: [P2('2026-11-02T06:50:00Z', 'in'), P2('2026-11-02T17:00:00Z', 'out')] })
+eq([ph2.worked_hours, ph2.base_salary], [10, 100000], 'hourly early leave')
+// Gardes futures non comptées
+const pf = computePayslip({ employee: { ...emp, pay_mode: 'per_shift', pay_rate: 60000 } as any, period: '2026-11-01', settings: DEFAULT_SETTINGS, entries, shifts: shifts as any, punches, now: Date.UTC(2026, 10, 6) })
+eq([pf.shifts_planned, pf.shifts_worked, pf.base_salary], [4, 4, 240000], 'future shifts excluded')

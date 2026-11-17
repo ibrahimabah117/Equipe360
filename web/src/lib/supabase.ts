@@ -1,4 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
+import { demoFetch, demoStorage } from '../demo/store'
+
+/** Version de démonstration : fausses données en mémoire, aucun appel à Supabase */
+export const DEMO = import.meta.env.VITE_DEMO === '1'
 
 // Clé publiable : prévue pour être utilisée dans le navigateur (la sécurité repose sur la RLS).
 const url = import.meta.env.VITE_SUPABASE_URL ?? 'https://pssdfeckbbnagvcwmtfl.supabase.co'
@@ -13,11 +17,12 @@ function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 export const supabase = createClient(url, key, {
-  auth: { persistSession: true, autoRefreshToken: true },
-  global: { fetch: fetchWithTimeout },
+  auth: DEMO ? { persistSession: true, autoRefreshToken: false, storage: demoStorage } : { persistSession: true, autoRefreshToken: true },
+  global: { fetch: DEMO ? demoFetch : fetchWithTimeout },
 })
 
 export type Role = 'owner' | 'manager' | 'agent'
+export type PayMode = 'monthly' | 'per_shift' | 'hourly'
 
 export interface Company {
   id: string
@@ -53,6 +58,9 @@ export interface Employee {
   job_title: string | null
   default_site_id: string | null
   base_salary: number
+  /** monthly = salaire mensuel ; per_shift = tarif par garde ; hourly = tarif horaire */
+  pay_mode: PayMode
+  pay_rate: number
   hire_date: string | null
   active: boolean
   created_at: string
