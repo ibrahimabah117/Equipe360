@@ -11,6 +11,7 @@ import {
   Eraser,
   MapPin,
   MoreHorizontal,
+  HeartPulse,
   Plus,
   Search,
   Settings2,
@@ -47,6 +48,7 @@ import {
 import { EntryChip, Legend, shiftHours, shiftTone, ShiftIcon } from './planning/common'
 import { DayModal, NeedsModal, SlotModal, type PlanningData } from './planning/Modals'
 import GenerateModal from './planning/GenerateModal'
+import SickLeaveModal from './planning/SickLeaveModal'
 
 type View = 'agents' | 'sites'
 
@@ -63,6 +65,7 @@ export default function Planning() {
   const [slot, setSlot] = useState<{ siteId: string; shiftId: string; date: string } | null>(null)
   const [needsSite, setNeedsSite] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
+  const [sickLeave, setSickLeave] = useState(false)
   const [menu, setMenu] = useState(false)
   const [confirm, setConfirm] = useState<'copy' | 'clear' | null>(null)
   const [busy, setBusy] = useState(false)
@@ -265,6 +268,7 @@ export default function Planning() {
         description="Gardes de la semaine, absences et remplacements."
         actions={
           <>
+            <Button variant="secondary" icon={HeartPulse} onClick={() => setSickLeave(true)} disabled={noSetup}>Arrêt maladie</Button>
             <Button variant="secondary" icon={Download} onClick={exportWeek} disabled={!entries?.length}>Exporter</Button>
             <div className="relative">
               <Button variant="secondary" icon={MoreHorizontal} onClick={() => setMenu(!menu)} aria-label="Plus d’actions">
@@ -519,6 +523,18 @@ export default function Planning() {
       {needsSite && data && <NeedsModal data={data} siteId={needsSite} onClose={() => setNeedsSite(null)} onChanged={loadBase} />}
       {generating && data && (
         <GenerateModal data={data} defaultStart={start} defaultSite={siteFilter} onClose={() => setGenerating(false)} onDone={reload} />
+      )}
+      {sickLeave && base && (
+        <SickLeaveModal
+          data={{ companyId: company.id, ...base }}
+          onClose={() => setSickLeave(false)}
+          onDone={(from) => {
+            setSickLeave(false)
+            const w = weekStart(from)
+            if (w === start) reload()
+            else setStart(w)
+          }}
+        />
       )}
       <ConfirmDialog
         open={confirm === 'copy'}
