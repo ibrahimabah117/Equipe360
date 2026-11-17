@@ -14,7 +14,7 @@ import {
   Users,
 } from 'lucide-react'
 import { errorMessage, manageAccess, supabase, type Company } from '../lib/supabase'
-import { formatDate, formatGNF, generatePin, normalizePhone, sectorLabel, SECTORS } from '../lib/format'
+import { formatDate, formatGNF, generatePin, isTrial, normalizePhone, sectorLabel, SECTORS, TRIAL_NOTE } from '../lib/format'
 import {
   Badge,
   Button,
@@ -34,6 +34,7 @@ import {
   Td,
   Textarea,
   Th,
+  Toggle,
   useToast,
 } from '../ui'
 import { CredentialsCard } from '../ui/Credentials'
@@ -48,6 +49,7 @@ const inOneMonth = () => {
 function subscriptionBadge(c: Company) {
   if (c.status === 'suspended') return <Badge tone="red" dot>Suspendu</Badge>
   if (!c.paid_until) return <Badge tone="neutral" dot>Sans échéance</Badge>
+  if (isTrial(c)) return c.paid_until < today() ? <Badge tone="amber" dot>Fin d’essai</Badge> : <Badge tone="brand" dot>Essai gratuit</Badge>
   if (c.paid_until < today()) return <Badge tone="amber" dot>Impayé</Badge>
   return <Badge tone="green" dot>Actif</Badge>
 }
@@ -80,9 +82,11 @@ export default function AdminClients() {
   const stats = useMemo(() => {
     const list = companies ?? []
     const active = list.filter((c) => c.status === 'active')
+    const paying = active.filter((c) => !isTrial(c))
     return {
       active: active.length,
-      mrr: active.reduce((s, c) => s + Number(c.monthly_price || 0), 0),
+      trial: active.length - paying.length,
+      mrr: paying.reduce((s, c) => s + Number(c.monthly_price || 0), 0),
       overdue: active.filter((c) => c.paid_until && c.paid_until < today()).length,
       employees: Object.values(headcount).reduce((a, b) => a + b, 0),
     }
@@ -115,8 +119,8 @@ export default function AdminClients() {
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        <StatCard icon={Building2} label="Clients actifs" value={stats.active} />
-        <StatCard icon={CircleDollarSign} label="Revenu mensuel" value={formatGNF(stats.mrr)} tone="green" sub="Abonnements actifs" />
+        <StatCard icon={Building2} label="Clients actifs" value={stats.active} sub={stats.trial ? `dont ${stats.trial} en essai gratuit` : undefined} />
+        <StatCard icon={CircleDollarSign} label="Revenu mensuel" value={formatGNF(stats.mrr)} tone="green" sub="Clients payants (hors essai)" />
         <StatCard icon={AlertCircle} label="Impayés" value={stats.overdue} tone={stats.overdue ? 'amber' : 'green'} sub="Échéance dépassée" />
         <StatCard icon={Users} label="Employés gérés" value={stats.employees} />
       </div>
@@ -226,6 +230,7 @@ function NewClientModal({ open, onClose, onCreated }: { open: boolean; onClose: 
     phone: '',
     price: '400000',
     paidUntil: inOneMonth(),
+    trial: true,
     ownerName: '',
     ownerPhone: '',
     ownerPassword: generatePin(),
@@ -240,7 +245,7 @@ function NewClientModal({ open, onClose, onCreated }: { open: boolean; onClose: 
     setTimeout(() => {
       setDone(null)
       setError(null)
-      setForm({ name: '', sector: 'gardiennage', phone: '', price: '400000', paidUntil: inOneMonth(), ownerName: '', ownerPhone: '', ownerPassword: generatePin() })
+      setForm({ name: '', sector: 'gardiennage', phone: '', price: '400000', paidUntil: inOneMonth(), trial: true, ownerName: '', ownerPhone: '', ownerPassword: generatePin() })
     }, 200)
   }
 
@@ -256,7 +261,8 @@ function NewClientModal({ open, onClose, onCreated }: { open: boolean; onClose: 
       const { error: e2 } = await supabase.rpc('admin_update_subscription', {
         p_company_id: id,
         p_monthly_price: Number(form.price || 0),
-        p_paid_until: form.paidUntil || null,
+        p_paid_until: form.trial ? inOneMonth() : form.paidUntil || null,
+        p_admin_note: form.trial ? `${TRIAL_NOTE} jusqu’au ${formatDate(inOneMonth())}` : null,
       })
       if (e2) throw e2
       if (form.phone.trim()) {
@@ -328,8 +334,16 @@ function NewClientModal({ open, onClose, onCreated }: { open: boolean; onClose: 
               <Input value={form.price} onChange={set('price')} inputMode="numeric" type="number" min={0} step={1000} />
             </Field>
             <Field label="Payé jusqu’au">
-              <Input type="date" value={form.paidUntil} onChange={set('paidUntil')} />
+              <Input type="date" value={form.trial ? inOneMonth() : form.paidUntil} onChange={set('paidUntil')} disabled={form.trial} />
             </Field>
+            <div className="rounded-xl bg-brand-50 p-3 ring-1 ring-brand-100 sm:col-span-2">
+              <Toggle checked={form.trial} onChange={(v) => setForm({ ...form, trial: v })} label="Offrir le premier mois (essai gratuit)" />
+              <p className="mt-1.5 pl-[52px] text-xs text-brand-900/70">
+                {form.trial
+                  ? `Accès complet et gratuit jusqu’au ${formatDate(inOneMonth())}. Ensuite ${formatGNF(Number(form.price || 0))} par mois ; le client passe en « Fin d’essai » s’il ne paie pas.`
+                  : 'Le client paie dès le premier mois.'}
+              </p>
+            </div>
           </section>
 
           <section className="rounded-xl bg-ink-50 p-4 ring-1 ring-ink-100">
@@ -366,6 +380,8 @@ function SubscriptionModal({ company, onClose, onSaved }: { company: Company; on
     const base = paidUntil && paidUntil > today() ? new Date(paidUntil + 'T00:00:00') : new Date()
     base.setMonth(base.getMonth() + 1)
     setPaidUntil(base.toISOString().slice(0, 10))
+    // Premier paiement : le client n'est plus en essai
+    if (isTrial({ admin_note: note })) setNote(`Client payant depuis le ${formatDate(today())}`)
   }
 
   async function save(e: FormEvent) {
@@ -401,6 +417,9 @@ function SubscriptionModal({ company, onClose, onSaved }: { company: Company; on
         <Field label="Prix mensuel (GNF)">
           <Input type="number" min={0} step={1000} value={price} onChange={(e) => setPrice(e.target.value)} />
         </Field>
+        {isTrial({ admin_note: note }) && (
+          <Callout tone="info">Ce client est en essai gratuit. Au premier paiement, cliquez sur « +1 mois » : il deviendra client payant.</Callout>
+        )}
         <Field label="Payé jusqu’au" hint="Après un paiement, ajoutez un mois en un clic.">
           <div className="flex gap-2">
             <Input type="date" value={paidUntil} onChange={(e) => setPaidUntil(e.target.value)} />

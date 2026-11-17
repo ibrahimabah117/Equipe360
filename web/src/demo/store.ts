@@ -54,6 +54,7 @@ function seed() {
     { id: CID, name: 'Sécurité Plus SARL', sector: 'gardiennage', phone: '224622000000', status: 'active', monthly_price: 400000, paid_until: addDays(t, 18), admin_note: 'Paie par Orange Money le 5 du mois', created_at: now },
     { id: uid(), name: 'Kaloum Gardiennage', sector: 'gardiennage', phone: null, status: 'active', monthly_price: 400000, paid_until: addDays(t, -6), admin_note: null, created_at: now },
     { id: uid(), name: 'Atlantic Sécurité', sector: 'gardiennage', phone: null, status: 'active', monthly_price: 600000, paid_until: addDays(t, 40), admin_note: null, created_at: now },
+    { id: uid(), name: 'Garde d’Or Sécurité', sector: 'gardiennage', phone: null, status: 'active', monthly_price: 400000, paid_until: addDays(t, 22), admin_note: 'Mois d’essai gratuit jusqu’au ' + addDays(t, 22).split('-').reverse().join('/'), created_at: now },
     { id: uid(), name: 'Propreté Conakry', sector: 'nettoyage', phone: null, status: 'suspended', monthly_price: 300000, paid_until: addDays(t, -45), admin_note: null, created_at: now },
   ]
 
