@@ -21,6 +21,8 @@ const Settings = lazy(() => import('./pages/Settings'))
 const Planning = lazy(() => import('./pages/Planning'))
 const Attendance = lazy(() => import('./pages/Attendance'))
 const Payroll = lazy(() => import('./pages/Payroll'))
+const Borne = lazy(() => import('./pages/Borne'))
+const Badges = lazy(() => import('./pages/Badges'))
 const PayslipPrint = lazy(() => import('./pages/PayslipPrint'))
 const PunchPage = lazy(() => import('./pages/Punch').then((m) => ({ default: m.PunchPage })))
 const ScanPage = lazy(() => import('./pages/Punch').then((m) => ({ default: m.ScanPage })))
@@ -61,6 +63,8 @@ function CompanyShell() {
         <Route path="sites/qr" element={<ManagerOnly><QrPrint /></ManagerOnly>} />
         <Route path="planning" element={<ManagerOnly><Planning /></ManagerOnly>} />
         <Route path="pointages" element={<ManagerOnly><Attendance /></ManagerOnly>} />
+        <Route path="borne" element={<ManagerOnly><Borne /></ManagerOnly>} />
+        <Route path="badges" element={<ManagerOnly><Badges /></ManagerOnly>} />
         <Route path="paie" element={<ManagerOnly><Payroll /></ManagerOnly>} />
         <Route path="paie/:period/fiches" element={<PayslipPrint />} />
         <Route path="acces" element={<ManagerOnly><Access /></ManagerOnly>} />

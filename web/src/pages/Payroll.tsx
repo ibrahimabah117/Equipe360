@@ -196,7 +196,7 @@ export default function Payroll() {
   )
 
   async function exportExcel() {
-    const header = ['Employé', 'Poste', 'Mode de paie', 'Tarif', 'Heures', 'Salaire de base', 'Gardes faites', 'Gardes prévues', 'Abs. injustifiées', 'Retenue absences', 'Retards (min)', 'Retenue retards', 'Prime de nuit', 'Prime ancienneté', 'Prime except.', 'Avance', 'Autres retenues', 'Brut', 'Net à payer']
+    const header = ['Employé', 'Poste', 'Mode de paie', 'Tarif', 'Heures', 'Salaire de base', 'Gardes faites', 'Gardes prévues', 'Abs. injustifiées', 'Retenue absences', 'Retards (min)', 'Retenue retards', 'Heures sup. (h)', 'Heures sup. (GNF)', 'Prime de nuit', 'Prime ancienneté', 'Prime except.', 'Avance', 'Autres retenues', 'Brut', 'Net à payer']
     const n = (v: number) => ({ value: Number(v), format: '#,##0' })
     await writeExcelFile(
       [
@@ -214,6 +214,8 @@ export default function Payroll() {
           n(s.absence_deduction),
           n(s.late_minutes),
           n(s.late_deduction),
+          { value: Number(s.overtime_hours ?? 0) },
+          n(s.overtime_pay ?? 0),
           n(s.night_bonus),
           n(s.seniority_bonus),
           n(s.bonus),
@@ -222,7 +224,7 @@ export default function Payroll() {
           n(s.gross),
           n(s.net),
         ]),
-        [{ value: 'TOTAL', fontWeight: 'bold' as const }, ...Array(16).fill({ value: '' }), { ...n(sum.gross), fontWeight: 'bold' as const }, { ...n(sum.net), fontWeight: 'bold' as const }],
+        [{ value: 'TOTAL', fontWeight: 'bold' as const }, ...Array(18).fill({ value: '' }), { ...n(sum.gross), fontWeight: 'bold' as const }, { ...n(sum.net), fontWeight: 'bold' as const }],
       ],
       { columns: [{ width: 26 }, { width: 18 }, ...header.slice(2).map(() => ({ width: 14 }))] },
     ).toFile(`paie-${period.slice(0, 7)}-${company.name.toLowerCase().replace(/\W+/g, '-')}.xlsx`)
@@ -324,7 +326,7 @@ export default function Payroll() {
               <tbody>
                 {visible.map((s) => {
                   const e = empById[s.employee_id]
-                  const primes = Number(s.night_bonus) + Number(s.seniority_bonus) + Number(s.bonus)
+                  const primes = Number(s.overtime_pay ?? 0) + Number(s.night_bonus) + Number(s.seniority_bonus) + Number(s.bonus)
                   const ret = Number(s.absence_deduction) + Number(s.late_deduction) + Number(s.advance) + Number(s.other_deduction)
                   return (
                     <tr key={s.id} onClick={() => setEditing(s)} className="cursor-pointer hover:bg-ink-50/60">
@@ -497,6 +499,9 @@ function PayslipModal({
           <p className="mb-2 text-xs font-medium tracking-wide text-ink-400 uppercase">Calcul automatique</p>
           <div className="divide-y divide-ink-100 rounded-xl px-4 ring-1 ring-ink-100">
             <Line label={baseLabel(slip).label} sub={baseLabel(slip).sub} value={slip.base_salary} />
+            {Number(slip.overtime_pay) > 0 && (
+              <Line label="Heures supplémentaires" sub={`${new Intl.NumberFormat('fr-FR').format(Number(slip.overtime_hours))} h au-delà de ${settings.overtime_weekly_threshold} h / semaine`} value={slip.overtime_pay} tone="plus" />
+            )}
             <Line label="Prime de nuit" sub={`${slip.night_shifts} nuit${slip.night_shifts > 1 ? 's' : ''} × ${formatGNF(settings.night_bonus)}`} value={slip.night_bonus} tone="plus" />
             <Line label="Prime d’ancienneté" sub={`${slip.seniority_years} an${slip.seniority_years > 1 ? 's' : ''}${employee?.hire_date ? '' : ' (date d’embauche non renseignée)'}`} value={slip.seniority_bonus} tone="plus" />
             <Line

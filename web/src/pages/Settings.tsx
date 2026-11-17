@@ -265,6 +265,33 @@ function PayrollSettingsCard({ companyId }: { companyId: string }) {
               <Input type="number" min={0} max={100} value={v.seniority_cap_pct} onChange={num('seniority_cap_pct')} />
             </Field>
           </div>
+          <div className="border-t border-ink-100 pt-5 sm:col-span-2">
+            <Toggle checked={v.overtime_enabled} onChange={(x) => setV({ ...v, overtime_enabled: x })} label="Payer les heures supplémentaires" />
+            <p className="mt-1 pl-[52px] text-xs text-ink-500">
+              Heures pointées au-delà du seuil de la semaine. Utile dans l’industrie ; à laisser désactivé si vos gardes de 12 h sont déjà comprises dans le salaire.
+            </p>
+          </div>
+          {v.overtime_enabled && (
+            <>
+              <Field label="Seuil par semaine (heures)" hint="Au-delà, les heures sont supplémentaires">
+                <Input type="number" min={0} max={168} step={0.5} value={v.overtime_weekly_threshold} onChange={num('overtime_weekly_threshold')} />
+              </Field>
+              <Field label="Heures par mois d’un salaire mensuel" hint="Pour trouver le taux horaire (173,33 h = 40 h × 52 / 12)">
+                <Input type="number" min={1} step={0.01} value={v.monthly_hours} onChange={num('monthly_hours')} />
+              </Field>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="1er palier (heures)">
+                  <Input type="number" min={0} step={0.5} value={v.overtime_tier1_hours} onChange={num('overtime_tier1_hours')} />
+                </Field>
+                <Field label="Majoration (%)">
+                  <Input type="number" min={0} max={300} value={v.overtime_tier1_pct} onChange={num('overtime_tier1_pct')} />
+                </Field>
+              </div>
+              <Field label="Majoration au-delà (%)" hint={`Ex. ${v.overtime_tier1_hours} premières heures à +${v.overtime_tier1_pct} %, puis +${v.overtime_tier2_pct} %`}>
+                <Input type="number" min={0} max={300} value={v.overtime_tier2_pct} onChange={num('overtime_tier2_pct')} />
+              </Field>
+            </>
+          )}
         </div>
         <div className="flex items-center justify-between gap-4 rounded-b-2xl border-t border-ink-100 bg-ink-50/60 px-5 py-3">
           <p className="text-xs text-ink-500">Cotisations sociales et impôts : non calculés (utilisez « autre retenue »).</p>

@@ -10,6 +10,7 @@ import {
   Download,
   ExternalLink,
   Hand,
+  IdCard,
   LogIn,
   LogOut,
   MapPinOff,
@@ -224,6 +225,7 @@ export default function Attendance() {
         actions={
           <>
             <Link to="/scan"><Button variant="secondary" icon={ScanLine}>Scanner</Button></Link>
+            <Link to={`/c/${company.id}/borne`}><Button variant="secondary" icon={IdCard}>Borne (badges)</Button></Link>
             <Button variant="secondary" icon={Download} onClick={exportDay} disabled={!rows.length}>Exporter</Button>
             <Button icon={Plus} onClick={() => setManual({})}>Saisie manuelle</Button>
           </>

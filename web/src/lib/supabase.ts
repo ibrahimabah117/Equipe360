@@ -61,6 +61,8 @@ export interface Employee {
   /** monthly = salaire mensuel ; per_shift = tarif par garde ; hourly = tarif horaire */
   pay_mode: PayMode
   pay_rate: number
+  /** Jeton du badge QR (pointage à la borne) */
+  badge_token: string
   hire_date: string | null
   active: boolean
   created_at: string

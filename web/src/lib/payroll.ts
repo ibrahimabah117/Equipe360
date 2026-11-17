@@ -1,5 +1,5 @@
 import type { Employee, Punch, ScheduleEntry, ShiftType } from './supabase'
-import { conakryInstant } from './dates'
+import { conakryInstant, weekStart } from './dates'
 
 export interface PayrollSettings {
   company_id: string
@@ -11,6 +11,12 @@ export interface PayrollSettings {
   night_bonus: number
   seniority_pct_per_year: number
   seniority_cap_pct: number
+  overtime_enabled: boolean
+  overtime_weekly_threshold: number
+  overtime_tier1_hours: number
+  overtime_tier1_pct: number
+  overtime_tier2_pct: number
+  monthly_hours: number
 }
 
 export const DEFAULT_SETTINGS: Omit<PayrollSettings, 'company_id'> = {
@@ -22,6 +28,12 @@ export const DEFAULT_SETTINGS: Omit<PayrollSettings, 'company_id'> = {
   night_bonus: 0,
   seniority_pct_per_year: 0,
   seniority_cap_pct: 25,
+  overtime_enabled: false,
+  overtime_weekly_threshold: 40,
+  overtime_tier1_hours: 8,
+  overtime_tier1_pct: 25,
+  overtime_tier2_pct: 50,
+  monthly_hours: 173.33,
 }
 
 export interface PayrollRun {
@@ -43,6 +55,8 @@ export interface Payslip {
   pay_mode: 'monthly' | 'per_shift' | 'hourly'
   pay_rate: number
   worked_hours: number
+  overtime_hours: number
+  overtime_pay: number
   shifts_planned: number
   shifts_worked: number
   shifts_unpunched: number
@@ -151,6 +165,12 @@ export function computePayslip(params: {
   const outs = punches.filter((p) => p.kind === 'out').map((p) => +new Date(p.punched_at))
   let workedMinutes = 0
   let upcoming = 0
+  const weekMinutes: Record<string, number> = {}
+  const addWorked = (date: string, minutes: number) => {
+    workedMinutes += minutes
+    const wk = weekStart(date)
+    weekMinutes[wk] = (weekMinutes[wk] ?? 0) + minutes
+  }
 
   for (const e of entries) {
     const sh = shifts[e.shift_type_id]
@@ -173,13 +193,13 @@ export function computePayslip(params: {
         unjustified++
         continue
       }
-      workedMinutes += shiftMinutes(sh) // payé comme prévu
+      addWorked(e.work_date, shiftMinutes(sh)) // payé comme prévu
     } else {
       // Temps réellement passé sur la garde (borné aux horaires prévus)
       const departure = outs.filter((t) => t > arrival && t <= end + 4 * 3600e3).sort((a, b) => a - b)[0]
       const from = Math.max(arrival, start)
       const to = Math.min(departure ?? end, end)
-      workedMinutes += Math.max(0, Math.round((to - from) / 60000))
+      addWorked(e.work_date, Math.max(0, Math.round((to - from) / 60000)))
       const late = Math.floor((arrival - start) / 60000)
       if (late > LATE_GRACE_MIN) {
         lateMinutes += late
@@ -199,11 +219,33 @@ export function computePayslip(params: {
   const billableLate = settings.late_deduction && mode !== 'hourly' ? Math.max(0, lateMinutes - settings.late_tolerance_min) : 0
   const lateDeduction = Math.round((billableLate * dayRate) / (settings.reference_shift_hours * 60))
   const nightBonus = Math.round(nightShifts * (Number(settings.night_bonus) || 0))
+
+  // Heures supplémentaires : au-delà du seuil hebdomadaire, en deux paliers de majoration
+  let overtimeHours = 0
+  let overtimePay = 0
+  const otWeeks: { week: string; hours: number }[] = []
+  if (settings.overtime_enabled) {
+    const hourly = mode === 'hourly' ? rate : mode === 'per_shift' ? rate / settings.reference_shift_hours : monthly / (Number(settings.monthly_hours) || 173.33)
+    // Au mois, l'heure supplémentaire n'est pas incluse dans le salaire : payée 100 % + majoration.
+    // À la garde ou à l'heure, elle est déjà payée au tarif normal : seule la majoration s'ajoute.
+    const basePart = mode === 'monthly' ? 1 : 0
+    for (const [week, mins] of Object.entries(weekMinutes)) {
+      const extra = Math.max(0, mins / 60 - Number(settings.overtime_weekly_threshold))
+      if (extra <= 0) continue
+      const t1 = Math.min(extra, Number(settings.overtime_tier1_hours))
+      const t2 = extra - t1
+      overtimeHours += extra
+      overtimePay += hourly * (t1 * (basePart + settings.overtime_tier1_pct / 100) + t2 * (basePart + settings.overtime_tier2_pct / 100))
+      otWeeks.push({ week, hours: Math.round(extra * 100) / 100 })
+    }
+    overtimeHours = Math.round(overtimeHours * 100) / 100
+    overtimePay = Math.round(overtimePay)
+  }
   const years = seniorityYears(employee.hire_date, period)
   const seniorityPct = Math.min(years * Number(settings.seniority_pct_per_year || 0), Number(settings.seniority_cap_pct || 0))
   const seniorityBonus = Math.round((base * seniorityPct) / 100)
 
-  const gross = base + nightBonus + seniorityBonus + Number(manual.bonus || 0)
+  const gross = base + overtimePay + nightBonus + seniorityBonus + Number(manual.bonus || 0)
   const deductions = absenceDeduction + lateDeduction + Number(manual.advance || 0) + Number(manual.other_deduction || 0)
   const net = Math.max(0, gross - deductions)
 
@@ -213,6 +255,8 @@ export function computePayslip(params: {
     pay_mode: mode,
     pay_rate: mode === 'monthly' ? monthly : rate,
     worked_hours: workedHours,
+    overtime_hours: overtimeHours,
+    overtime_pay: overtimePay,
     shifts_planned: planned,
     shifts_worked: worked,
     shifts_unpunched: unpunched,
@@ -227,13 +271,13 @@ export function computePayslip(params: {
     ...manual,
     gross,
     net,
-    details: { upcoming_shifts: upcoming, late_days: lateDays, billable_late_minutes: billableLate, seniority_pct: seniorityPct, day_rate: Math.round(dayRate) },
+    details: { upcoming_shifts: upcoming, overtime_weeks: otWeeks, late_days: lateDays, billable_late_minutes: billableLate, seniority_pct: seniorityPct, day_rate: Math.round(dayRate) },
   }
 }
 
 /** Recalcule brut et net après une modification manuelle */
-export function totals(p: Pick<Payslip, 'base_salary' | 'night_bonus' | 'seniority_bonus' | 'bonus' | 'absence_deduction' | 'late_deduction' | 'advance' | 'other_deduction'>) {
-  const gross = Number(p.base_salary) + Number(p.night_bonus) + Number(p.seniority_bonus) + Number(p.bonus)
+export function totals(p: Pick<Payslip, 'base_salary' | 'overtime_pay' | 'night_bonus' | 'seniority_bonus' | 'bonus' | 'absence_deduction' | 'late_deduction' | 'advance' | 'other_deduction'>) {
+  const gross = Number(p.base_salary) + Number(p.overtime_pay ?? 0) + Number(p.night_bonus) + Number(p.seniority_bonus) + Number(p.bonus)
   const net = Math.max(0, gross - Number(p.absence_deduction) - Number(p.late_deduction) - Number(p.advance) - Number(p.other_deduction))
   return { gross, net }
 }
