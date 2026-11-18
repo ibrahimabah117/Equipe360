@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { Building2, CheckCircle2, ChevronRight, CloudOff, FileText, LogIn, LogOut, MapPinOff, PauseCircle, ScanLine, ShieldX } from 'lucide-react'
+import { Building2, CalendarX2, CheckCircle2, ChevronRight, CloudOff, FileText, LogIn, LogOut, MapPinOff, PauseCircle, ScanLine, ShieldX } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useCompany } from '../lib/company'
 import { supabase, type Employee, type Punch, type ScheduleEntry, type ShiftType, type Site } from '../lib/supabase'
 import { cacheGet, cacheSet, clearFailed, isNetworkError, syncQueue, usePunchQueue } from '../lib/offline'
 import { addDays, dateAt, dayLong, timeAt, today } from '../lib/dates'
 import { ABSENCE_LABELS, hhmm, ShiftIcon, shiftTone, toneClasses } from './planning/common'
-import { formatGNF, ROLE_LABELS, sectorLabel } from '../lib/format'
+import { formatDate, formatGNF, ROLE_LABELS, sectorLabel } from '../lib/format'
 import { periodLabel } from '../lib/payroll'
 import { Avatar, Badge, Button, Callout, Card, cx, PageHeader, PageLoader } from '../ui'
 import { Logo } from '../ui/Logo'
@@ -30,12 +30,38 @@ function CenterCard({ icon: Icon, title, text, tone = 'brand' }: { icon: typeof 
   )
 }
 
-/** Page d'accueil après connexion : redirige vers la bonne entreprise */
-export function Home() {
-  const { isAdmin, memberships } = useAuth()
-  if (isAdmin) return <Navigate to="/admin" replace />
-  const usable = memberships.filter((m) => m.company)
-  if (memberships.length && !usable.length) {
+interface AccessRow {
+  company_id: string
+  company_name: string
+  role: string
+  paid_until: string | null
+  blocked: 'suspended' | 'expired' | null
+}
+
+/** Entreprise inaccessible : abonnement expiré (blocage automatique) ou suspension manuelle */
+function Blocked() {
+  const [rows, setRows] = useState<AccessRow[] | null>(null)
+  useEffect(() => {
+    supabase.rpc('my_access').then(({ data }) => setRows((data as AccessRow[] | null) ?? []))
+  }, [])
+  if (!rows) return <PageLoader />
+  const expired = rows.find((r) => r.blocked === 'expired')
+  if (expired) {
+    const boss = expired.role === 'owner' || expired.role === 'manager'
+    return (
+      <CenterCard
+        icon={CalendarX2}
+        tone="red"
+        title="Abonnement expiré"
+        text={
+          boss
+            ? `L’abonnement de ${expired.company_name} a pris fin le ${formatDate(expired.paid_until)}. L’accès est coupé pour toute l’équipe jusqu’au paiement. Vos données sont conservées : contactez l’équipe Équipe360 sur WhatsApp pour renouveler, l’accès revient aussitôt.`
+            : `L’accès de ${expired.company_name} à Équipe360 est coupé car l’abonnement n’est pas payé. Prévenez votre responsable. Vos pointages sont conservés.`
+        }
+      />
+    )
+  }
+  if (rows.some((r) => r.blocked === 'suspended')) {
     return (
       <CenterCard
         icon={PauseCircle}
@@ -45,6 +71,15 @@ export function Home() {
       />
     )
   }
+  return <CenterCard icon={ShieldX} tone="red" title="Accès impossible" text="Vérifiez votre connexion Internet, puis rouvrez l’application." />
+}
+
+/** Page d'accueil après connexion : redirige vers la bonne entreprise */
+export function Home() {
+  const { isAdmin, memberships } = useAuth()
+  if (isAdmin) return <Navigate to="/admin" replace />
+  const usable = memberships.filter((m) => m.company)
+  if (memberships.length && !usable.length) return <Blocked />
   if (!usable.length) {
     return (
       <CenterCard
@@ -88,9 +123,10 @@ export function Home() {
 export function CompanyNotFound() {
   const { memberships } = useAuth()
   const { companyId } = useParams()
-  const suspended = memberships.some((m) => m.company_id === companyId && !m.company)
-  return suspended ? (
-    <CenterCard icon={PauseCircle} tone="amber" title="Compte suspendu" text="L’accès de cette entreprise est temporairement suspendu. Contactez l’équipe Équipe360." />
+  // Membre de cette entreprise mais elle n'est plus lisible : abonnement expiré ou suspendu
+  const member = memberships.some((m) => m.company_id === companyId)
+  return member ? (
+    <Blocked />
   ) : (
     <CenterCard icon={ShieldX} tone="red" title="Entreprise introuvable" text="Cette entreprise n’existe pas ou vous n’y avez pas accès." />
   )

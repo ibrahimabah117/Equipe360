@@ -76,13 +76,16 @@ Deno.serve(async (req) => {
   if (!callerRole) {
     const { data: m } = await admin
       .from("company_members")
-      .select("role, companies!inner(status)")
+      .select("role, companies!inner(status, paid_until)")
       .eq("company_id", companyId)
       .eq("user_id", caller.id)
       .maybeSingle();
     // deno-lint-ignore no-explicit-any
-    const status = (m as any)?.companies?.status;
-    if (m && status === "active" && (m.role === "owner" || m.role === "manager")) {
+    const c = (m as any)?.companies as { status: string; paid_until: string | null } | undefined;
+    // Même règle que private.company_open : bloqué 7 jours après la fin de l'abonnement
+    const graceLimit = new Date(Date.now() - 7 * 86400e3).toISOString().slice(0, 10);
+    const open = c?.status === "active" && (!c.paid_until || c.paid_until >= graceLimit);
+    if (m && open && (m.role === "owner" || m.role === "manager")) {
       callerRole = m.role as Role;
     }
   }

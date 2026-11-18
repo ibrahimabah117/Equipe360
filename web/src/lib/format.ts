@@ -75,3 +75,24 @@ export const TRIAL_NOTE = 'Mois d’essai gratuit'
 export function isTrial(c: { admin_note: string | null }): boolean {
   return (c.admin_note ?? '').startsWith(TRIAL_NOTE)
 }
+
+/**
+ * Abonnement : après le dernier jour payé (paid_until), 7 jours de grâce, puis l'entreprise
+ * est bloquée (même règle que private.company_open côté base de données).
+ */
+export const GRACE_DAYS = 7
+function shiftIso(s: string, n: number) {
+  const d = new Date(s + 'T00:00:00Z')
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+/** Dernier jour d'accès avant blocage, ou null sans échéance */
+export function lastAccessDay(paidUntil: string | null): string | null {
+  return paidUntil ? shiftIso(paidUntil, GRACE_DAYS) : null
+}
+/** 'ok' | 'ending' (fin dans 3 jours ou moins) | 'grace' (échu, pas encore bloqué) | 'blocked' */
+export function subscriptionState(paidUntil: string | null, todayIso: string): 'ok' | 'ending' | 'grace' | 'blocked' {
+  if (!paidUntil) return 'ok'
+  if (paidUntil >= todayIso) return paidUntil <= shiftIso(todayIso, 3) ? 'ending' : 'ok'
+  return lastAccessDay(paidUntil)! >= todayIso ? 'grace' : 'blocked'
+}

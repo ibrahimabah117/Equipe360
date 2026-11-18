@@ -4,8 +4,8 @@ import { AlertTriangle, ArrowRight, CalendarCheck2, CalendarDays, Check, KeyRoun
 import { addDays, conakryInstant, dayLong, today } from '../lib/dates'
 import { supabase } from '../lib/supabase'
 import { useCompany } from '../lib/company'
-import { formatDate, formatGNF, isTrial, sectorLabel } from '../lib/format'
-import { Badge, Card, cx, PageHeader, PageLoader, StatCard } from '../ui'
+import { formatDate, formatGNF, isTrial, lastAccessDay, sectorLabel, subscriptionState } from '../lib/format'
+import { Badge, Callout, Card, cx, PageHeader, PageLoader, StatCard } from '../ui'
 import CoverageChart from './dashboard/CoverageChart'
 
 interface Stats {
@@ -101,6 +101,8 @@ export default function Dashboard() {
         <StatCard icon={KeyRound} label="Comptes d’accès" value={s.accounts} sub={`${s.agentsWithAccess} liés à un employé`} />
       </div>
 
+      <SubscriptionNotice paidUntil={company.paid_until} />
+
       <CoverageChart companyId={company.id} base={base} />
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -182,4 +184,29 @@ export default function Dashboard() {
       </div>
     </>
   )
+}
+
+/** Avertit le patron avant et après la fin de l'abonnement (coupure automatique après 7 jours) */
+function SubscriptionNotice({ paidUntil }: { paidUntil: string | null }) {
+  const state = subscriptionState(paidUntil, today())
+  if (state === 'ending') {
+    return (
+      <div className="mb-6">
+        <Callout tone="info" title="Votre abonnement arrive à échéance">
+          Il est payé jusqu’au {formatDate(paidUntil)}. Pensez à renouveler auprès de l’équipe Équipe360 sur WhatsApp.
+        </Callout>
+      </div>
+    )
+  }
+  if (state === 'grace') {
+    return (
+      <div className="mb-6">
+        <Callout tone="danger" title="Abonnement expiré">
+          Votre abonnement a pris fin le {formatDate(paidUntil)}. Sans paiement, l’accès sera coupé pour toute l’équipe
+          (vous et vos agents) après le {formatDate(lastAccessDay(paidUntil))}. Contactez l’équipe Équipe360 sur WhatsApp pour renouveler.
+        </Callout>
+      </div>
+    )
+  }
+  return null
 }

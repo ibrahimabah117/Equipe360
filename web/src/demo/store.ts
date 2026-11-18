@@ -423,6 +423,14 @@ function rpc(name: string, p: Row) {
   switch (name) {
     case 'am_i_platform_admin':
       return json(currentRole === 'admin')
+    case 'my_access': {
+      const limit = addDays(today(), -7)
+      return json(db.company_members.filter((m) => m.user_id === me?.id).map((m) => {
+        const c = db.companies.find((x) => x.id === m.company_id)!
+        const blocked = c.status !== 'active' ? 'suspended' : c.paid_until && c.paid_until < limit ? 'expired' : null
+        return { company_id: c.id, company_name: c.name, role: m.role, paid_until: c.paid_until, blocked }
+      }))
+    }
     case 'create_company': {
       const id = uid()
       db.companies.push({ id, name: p.p_name, sector: p.p_sector, phone: null, status: 'active', monthly_price: 400000, paid_until: null, admin_note: null, created_at: new Date().toISOString() })
