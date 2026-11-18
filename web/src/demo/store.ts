@@ -327,8 +327,9 @@ function rest(table: string, method: string, params: URLSearchParams, headers: H
       })
     }
     const total = rows.length
+    const offset = Number(params.get('offset') ?? 0)
     const limit = params.get('limit')
-    if (limit) rows = rows.slice(0, Number(limit))
+    if (offset || limit) rows = rows.slice(offset, limit ? offset + Number(limit) : undefined)
     rows = rows.map((r) => embed(table, r, select))
     const range = { 'content-range': `0-${Math.max(0, rows.length - 1)}/${total}` }
     if (method === 'HEAD') return new Response(null, { status: 200, headers: range })
