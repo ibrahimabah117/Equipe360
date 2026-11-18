@@ -96,3 +96,9 @@ export function subscriptionState(paidUntil: string | null, todayIso: string): '
   if (paidUntil >= todayIso) return paidUntil <= shiftIso(todayIso, 3) ? 'ending' : 'ok'
   return lastAccessDay(paidUntil)! >= todayIso ? 'grace' : 'blocked'
 }
+
+/** WhatsApp de l'équipe Équipe360 (abonnements, support) */
+export const SUPPORT_WHATSAPP = '224613550941'
+export function supportWhatsAppUrl(message: string): string {
+  return `https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(message)}`
+}

@@ -7,6 +7,7 @@ import { useCompany } from '../lib/company'
 import { formatDate, formatGNF, isTrial, lastAccessDay, sectorLabel, subscriptionState } from '../lib/format'
 import { Badge, Callout, Card, cx, PageHeader, PageLoader, StatCard } from '../ui'
 import CoverageChart from './dashboard/CoverageChart'
+import { SupportWhatsApp } from '../ui/SupportWhatsApp'
 
 interface Stats {
   employees: number
@@ -101,7 +102,7 @@ export default function Dashboard() {
         <StatCard icon={KeyRound} label="Comptes d’accès" value={s.accounts} sub={`${s.agentsWithAccess} liés à un employé`} />
       </div>
 
-      <SubscriptionNotice paidUntil={company.paid_until} />
+      <SubscriptionNotice paidUntil={company.paid_until} companyName={company.name} />
 
       <CoverageChart companyId={company.id} base={base} />
 
@@ -152,8 +153,9 @@ export default function Dashboard() {
             </div>
             <div className="p-5 text-sm text-ink-600">
               {isTrial(company)
-                ? `Ensuite ${formatGNF(company.monthly_price)} par mois. Pour continuer, contactez l’équipe Équipe360 sur WhatsApp.`
-                : 'Pour renouveler, contactez l’équipe Équipe360 sur WhatsApp.'}
+                ? `Ensuite ${formatGNF(company.monthly_price)} par mois. Pour continuer, contactez l’équipe Équipe360.`
+                : 'Pour renouveler, contactez l’équipe Équipe360.'}
+              <SupportWhatsApp className="mt-3 !items-start" label="Écrire sur WhatsApp" message={`Bonjour Équipe360, je vous contacte au sujet de l’abonnement de ${company.name}.`} />
             </div>
           </Card>
 
@@ -187,13 +189,15 @@ export default function Dashboard() {
 }
 
 /** Avertit le patron avant et après la fin de l'abonnement (coupure automatique après 7 jours) */
-function SubscriptionNotice({ paidUntil }: { paidUntil: string | null }) {
+function SubscriptionNotice({ paidUntil, companyName }: { paidUntil: string | null; companyName: string }) {
+  const renew = `Bonjour Équipe360, je souhaite renouveler l’abonnement de ${companyName}.`
   const state = subscriptionState(paidUntil, today())
   if (state === 'ending') {
     return (
       <div className="mb-6">
         <Callout tone="info" title="Votre abonnement arrive à échéance">
-          Il est payé jusqu’au {formatDate(paidUntil)}. Pensez à renouveler auprès de l’équipe Équipe360 sur WhatsApp.
+          Il est payé jusqu’au {formatDate(paidUntil)}. Pensez à renouveler auprès de l’équipe Équipe360.
+          <SupportWhatsApp className="mt-3 !items-start" label="Renouveler sur WhatsApp" message={renew} />
         </Callout>
       </div>
     )
@@ -203,7 +207,8 @@ function SubscriptionNotice({ paidUntil }: { paidUntil: string | null }) {
       <div className="mb-6">
         <Callout tone="danger" title="Abonnement expiré">
           Votre abonnement a pris fin le {formatDate(paidUntil)}. Sans paiement, l’accès sera coupé pour toute l’équipe
-          (vous et vos agents) après le {formatDate(lastAccessDay(paidUntil))}. Contactez l’équipe Équipe360 sur WhatsApp pour renouveler.
+          (vous et vos agents) après le {formatDate(lastAccessDay(paidUntil))}. Renouvelez dès maintenant pour éviter la coupure.
+          <SupportWhatsApp className="mt-3 !items-start" label="Renouveler sur WhatsApp" message={renew} />
         </Callout>
       </div>
     )
