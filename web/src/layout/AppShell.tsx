@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
+import { ChangePasswordModal } from '../ui/ChangePassword'
 import {
   Building2,
   CalendarDays,
@@ -90,6 +91,7 @@ export function AppShell({
 }) {
   const { session, isAdmin, memberships, signOut } = useAuth()
   const [open, setOpen] = useState(false)
+  const [changingPw, setChangingPw] = useState(false)
   const location = useLocation()
   useEffect(() => setOpen(false), [location.pathname])
 
@@ -181,6 +183,13 @@ export function AppShell({
             <p className="truncate text-[11px] text-white/45">{whoSub}</p>
           </div>
           <button
+            onClick={() => setChangingPw(true)}
+            title="Changer mon mot de passe"
+            className="rounded-lg p-1.5 text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            <KeyRound className="size-4" />
+          </button>
+          <button
             onClick={signOut}
             title="Se déconnecter"
             className="rounded-lg p-1.5 text-white/50 transition-colors hover:bg-white/10 hover:text-white"
@@ -214,6 +223,7 @@ export function AppShell({
       </header>
 
       <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10 print:p-0">{children}</main>
+      {changingPw && <ChangePasswordModal onClose={() => setChangingPw(false)} />}
     </div>
   )
 }

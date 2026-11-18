@@ -102,7 +102,7 @@ export async function manageAccess(body: Record<string, unknown>) {
     }
     throw new Error(message)
   }
-  return data as { ok: true; user_id?: string; phone?: string }
+  return data as { ok: true; user_id?: string; phone?: string; temporary?: boolean }
 }
 
 /**

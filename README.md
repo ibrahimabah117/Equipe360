@@ -39,6 +39,7 @@ La configuration est dans `web/wrangler.jsonc`.
 
 - **Admins Équipe360** : onglet « Administrateur », par e-mail (liste dans `private.platform_admins`).
 - **Clients et agents** : onglet « Téléphone ». Les accès sont créés depuis « Comptes d’accès » et envoyés par WhatsApp.
+  Patron et chefs de poste : le mot de passe envoyé est provisoire, ils choisissent le leur à la première connexion. Les agents gardent le code donné par leur chef. Tout le monde peut changer son mot de passe (icône clé, en bas du menu).
 
 ## Étapes
 

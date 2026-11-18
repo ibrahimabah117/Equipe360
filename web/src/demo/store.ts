@@ -483,12 +483,13 @@ function manageAccess(b: Row) {
     if (db.company_members.some((m) => m.phone === phone)) return json({ error: 'Ce numéro a déjà un compte Équipe360.' }, 400)
     const user_id = 'd3m0-u-' + uid()
     db.company_members.push({ company_id: b.company_id, user_id, role: b.role, employee_id: b.employee_id ?? null, phone, display_name: b.display_name ?? null, created_at: new Date().toISOString() })
-    return json({ ok: true, user_id, phone })
+    return json({ ok: true, user_id, phone, temporary: b.role !== 'agent' })
   }
   if (b.action === 'remove') {
     db.company_members = db.company_members.filter((m) => !(m.company_id === b.company_id && m.user_id === b.user_id))
   }
-  return json({ ok: true })
+  const target = db.company_members.find((m) => m.company_id === b.company_id && m.user_id === b.user_id)
+  return json({ ok: true, temporary: b.action === 'reset_password' && target?.role !== 'agent' })
 }
 
 /* ------------------------------------------------------------------ Point d'entrée */
@@ -498,9 +499,12 @@ function fakeJwt(sub: string) {
   return `${enc({ alg: 'HS256', typ: 'JWT' })}.${enc({ sub, role: 'authenticated', aud: 'authenticated', exp: Math.floor(Date.now() / 1000) + 30 * 86400 })}.demo`
 }
 
+/** Métadonnées modifiables (changement de mot de passe) */
+const demoMeta: Partial<Record<DemoRole, Record<string, unknown>>> = {}
+
 function userObject(role: DemoRole) {
   const u = USERS[role]
-  return { id: u.id, aud: 'authenticated', role: 'authenticated', email: u.email, user_metadata: { display_name: u.name }, app_metadata: {}, created_at: now }
+  return { id: u.id, aud: 'authenticated', role: 'authenticated', email: u.email, user_metadata: { display_name: u.name, ...demoMeta[role] }, app_metadata: {}, created_at: now }
 }
 
 export function demoTokens(role: DemoRole) {
@@ -528,6 +532,7 @@ export const demoFetch: typeof fetch = async (input, init) => {
     const role = (Object.keys(USERS) as DemoRole[]).find((r) => USERS[r].id === sub) ?? currentRole
     if (path.endsWith('/user') && role) {
       currentRole = role
+      if (method === 'PUT' && body?.data) demoMeta[role] = { ...demoMeta[role], ...body.data }
       return json(userObject(role))
     }
     if (path.endsWith('/token') && currentRole) {

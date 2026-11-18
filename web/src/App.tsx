@@ -7,6 +7,7 @@ import { PageLoader, Spinner, ToastProvider } from './ui'
 import { LogoMark } from './ui/Logo'
 import RealLogin from './pages/Login'
 import DemoLogin, { DemoBar } from './demo/DemoLogin'
+import { ForcePasswordChange } from './ui/ChangePassword'
 import { DEMO } from './lib/supabase'
 
 const Login = DEMO ? DemoLogin : RealLogin
@@ -91,6 +92,9 @@ function Router() {
       </Routes>
     )
   }
+
+  // Patron ou chef de poste avec le mot de passe provisoire reçu par WhatsApp
+  if (session.user.user_metadata?.must_change_password) return <ForcePasswordChange />
 
   return (
     <>

@@ -237,7 +237,7 @@ function NewClientModal({ open, onClose, onCreated }: { open: boolean; onClose: 
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [done, setDone] = useState<{ name: string; phone: string; password: string; company: string } | null>(null)
+  const [done, setDone] = useState<{ name: string; phone: string; password: string; company: string; temporary: boolean } | null>(null)
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value })
 
   function close() {
@@ -278,7 +278,7 @@ function NewClientModal({ open, onClose, onCreated }: { open: boolean; onClose: 
           password: form.ownerPassword,
           display_name: form.ownerName.trim() || null,
         })
-        setDone({ name: form.ownerName.trim() || 'le propriétaire', phone: res.phone!, password: form.ownerPassword, company: form.name.trim() })
+        setDone({ name: form.ownerName.trim() || 'le propriétaire', phone: res.phone!, password: form.ownerPassword, company: form.name.trim(), temporary: res.temporary ?? true })
       } else {
         toast.success(`${form.name} est créé`)
         close()
@@ -313,7 +313,7 @@ function NewClientModal({ open, onClose, onCreated }: { open: boolean; onClose: 
       }
     >
       {done ? (
-        <CredentialsCard name={done.name} phone={done.phone} password={done.password} companyName={done.company} />
+        <CredentialsCard name={done.name} phone={done.phone} password={done.password} companyName={done.company} temporary={done.temporary} />
       ) : (
         <form id="new-client" onSubmit={submit} className="space-y-6">
           <section className="grid gap-4 sm:grid-cols-2">
