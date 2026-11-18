@@ -7,6 +7,7 @@ import { useCompany } from '../lib/company'
 import { formatDate, formatGNF, isTrial, lastAccessDay, sectorLabel, subscriptionState } from '../lib/format'
 import { Badge, Callout, Card, cx, PageHeader, PageLoader, StatCard } from '../ui'
 import CoverageChart from './dashboard/CoverageChart'
+import AbsenceAlerts from './dashboard/AbsenceAlerts'
 import { SupportWhatsApp } from '../ui/SupportWhatsApp'
 
 interface Stats {
@@ -88,6 +89,8 @@ export default function Dashboard() {
           </span>
         }
       />
+
+      <AbsenceAlerts companyId={company.id} base={base} />
 
       <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         <StatCard icon={Users} label="Employés actifs" value={s.employees} />

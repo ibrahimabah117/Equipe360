@@ -47,5 +47,6 @@ La configuration est dans `web/wrangler.jsonc`.
 2. ✅ Planning, absences, remplaçants
 3. ✅ Pointage QR + GPS, mode hors ligne
    - Anti-fraude : selfie obligatoire (option par client), alertes automatiques (téléphone partagé, position figée ou imprécise, hors zone, selfie manquant, envoi tardif), filtre « Suspects »
+   - Alertes d’absence : toutes les 5 min, le serveur (pg_cron) signale tout agent qui n’a pas pointé 30 min après le début de sa garde, même appli fermée. Affichées sur le tableau de bord et l’écran Pointages, avec Appeler / WhatsApp / « Je m’en occupe ». Fermeture automatique quand l’agent pointe ou que l’absence est saisie.
 4. ✅ Calcul de la paie, fiches PDF
 5. Mise en ligne (Cloudflare) et test avec un premier client

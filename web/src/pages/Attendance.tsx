@@ -55,6 +55,7 @@ import {
 } from '../ui'
 import { FLAG_INFO, isSuspect, punchFlags, suspectFlags } from '../lib/flags'
 import { punchPhotoUrl } from '../lib/photos'
+import AbsenceAlerts from './dashboard/AbsenceAlerts'
 import { ABSENCE_LABELS, hhmm, shiftHours, ShiftIcon, shiftTone, toneClasses } from './planning/common'
 
 const GRACE_MIN = 10
@@ -236,6 +237,8 @@ export default function Attendance() {
           </>
         }
       />
+
+      <AbsenceAlerts companyId={company.id} base={`/c/${company.id}`} />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         <StatCard icon={UserCheck} label="Présents" value={`${stats.present}/${stats.planned}`} tone="green" sub="Gardes du jour" />
