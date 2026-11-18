@@ -348,6 +348,8 @@ function rest(table: string, method: string, params: URLSearchParams, headers: H
       })
     }
     const total = rows.length
+    const offset = Number(params.get('offset') ?? 0)
+    if (offset) rows = rows.slice(offset)
     const limit = params.get('limit')
     if (limit) rows = rows.slice(0, Number(limit))
     rows = rows.map((r) => embed(table, r, select))

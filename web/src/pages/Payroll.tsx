@@ -17,7 +17,7 @@ import {
   Users,
   Wallet,
 } from 'lucide-react'
-import { errorMessage, supabase, type Employee, type Punch, type ScheduleEntry, type ShiftType } from '../lib/supabase'
+import { errorMessage, fetchAll, supabase, type Employee, type Punch, type ScheduleEntry, type ShiftType } from '../lib/supabase'
 import { useCompany } from '../lib/company'
 import { formatDate, formatGNF } from '../lib/format'
 import { conakryInstant, today } from '../lib/dates'
@@ -121,15 +121,20 @@ export default function Payroll() {
       }
       const end = monthEnd(period)
       const [en, sh, pu] = await Promise.all([
-        supabase.from('schedule_entries').select('*').eq('company_id', company.id).gte('work_date', period).lte('work_date', end),
+        // Par pages : au-delà de 1 000 lignes, le serveur coupe la réponse
+        fetchAll<ScheduleEntry>(() => supabase.from('schedule_entries').select('*').eq('company_id', company.id).gte('work_date', period).lte('work_date', end).order('id')),
         supabase.from('shift_types').select('*').eq('company_id', company.id),
-        supabase
-          .from('punches')
-          .select('*')
-          .eq('company_id', company.id)
-          .gte('punched_at', new Date(conakryInstant(period, '00:00') - 4 * 3600e3).toISOString())
-          .lte('punched_at', new Date(conakryInstant(end, '23:59') + 24 * 3600e3).toISOString()),
+        fetchAll<Punch>(() =>
+          supabase
+            .from('punches')
+            .select('*')
+            .eq('company_id', company.id)
+            .gte('punched_at', new Date(conakryInstant(period, '00:00') - 4 * 3600e3).toISOString())
+            .lte('punched_at', new Date(conakryInstant(end, '23:59') + 24 * 3600e3).toISOString())
+            .order('id'),
+        ),
       ])
+      if (pu.error) throw pu.error
       if (en.error) throw en.error
       const entries = (en.data ?? []) as ScheduleEntry[]
       const shifts = Object.fromEntries(((sh.data ?? []) as ShiftType[]).map((s) => [s.id, s]))

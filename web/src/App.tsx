@@ -21,6 +21,7 @@ const Settings = lazy(() => import('./pages/Settings'))
 const Planning = lazy(() => import('./pages/Planning'))
 const Attendance = lazy(() => import('./pages/Attendance'))
 const Payroll = lazy(() => import('./pages/Payroll'))
+const Reports = lazy(() => import('./pages/Reports'))
 const Borne = lazy(() => import('./pages/Borne'))
 const Badges = lazy(() => import('./pages/Badges'))
 const PayslipPrint = lazy(() => import('./pages/PayslipPrint'))
@@ -66,6 +67,7 @@ function CompanyShell() {
         <Route path="borne" element={<ManagerOnly><Borne /></ManagerOnly>} />
         <Route path="badges" element={<ManagerOnly><Badges /></ManagerOnly>} />
         <Route path="paie" element={<ManagerOnly><Payroll /></ManagerOnly>} />
+        <Route path="rapport" element={<ManagerOnly><Reports /></ManagerOnly>} />
         <Route path="paie/:period/fiches" element={<PayslipPrint />} />
         <Route path="acces" element={<ManagerOnly><Access /></ManagerOnly>} />
         <Route path="parametres" element={<ManagerOnly><Settings /></ManagerOnly>} />

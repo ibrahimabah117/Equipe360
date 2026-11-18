@@ -105,6 +105,24 @@ export async function manageAccess(body: Record<string, unknown>) {
   return data as { ok: true; user_id?: string; phone?: string }
 }
 
+/**
+ * Lit toutes les lignes d'une requête, par pages de 1 000 (limite du serveur).
+ * La requête doit avoir un ordre stable (terminer par .order('id')).
+ */
+export async function fetchAll<T>(
+  make: () => { range: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }> },
+  pageSize = 1000,
+): Promise<{ data: T[]; error: { message: string } | null }> {
+  const all: T[] = []
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await make().range(from, from + pageSize - 1)
+    if (error) return { data: all, error }
+    const rows = (data ?? []) as T[]
+    all.push(...rows)
+    if (rows.length < pageSize) return { data: all, error: null }
+  }
+}
+
 export function errorMessage(e: unknown): string {
   if (e instanceof Error) return e.message
   if (e && typeof e === 'object' && 'message' in e) return String((e as { message: unknown }).message)

@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
-    "test": "npx -y tsx tests/payroll.test.ts",
+    "test": "npx -y tsx tests/payroll.test.ts && npx -y tsx tests/attendance.test.ts",
     "build:demo": "tsc -b && vite build --mode demo --outDir dist-demo"
   },
   "dependencies": {
