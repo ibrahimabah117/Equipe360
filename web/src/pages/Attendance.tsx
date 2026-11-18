@@ -18,6 +18,7 @@ import {
   Plus,
   RefreshCw,
   ScanLine,
+  ShieldAlert,
   UserCheck,
   UserX,
 } from 'lucide-react'
@@ -52,6 +53,8 @@ import {
   StatCard,
   useToast,
 } from '../ui'
+import { FLAG_INFO, isSuspect, punchFlags, suspectFlags } from '../lib/flags'
+import { punchPhotoUrl } from '../lib/photos'
 import { ABSENCE_LABELS, hhmm, shiftHours, ShiftIcon, shiftTone, toneClasses } from './planning/common'
 
 const GRACE_MIN = 10
@@ -76,7 +79,7 @@ export default function Attendance() {
   const { company } = useCompany()
   const [date, setDate] = useState(today())
   const [siteFilter, setSiteFilter] = useState('')
-  const [filter, setFilter] = useState<'all' | 'problems' | 'late' | 'missing' | 'zone'>('all')
+  const [filter, setFilter] = useState<'all' | 'problems' | 'late' | 'missing' | 'suspect'>('all')
   const [data, setData] = useState<{
     entries: ScheduleEntry[]
     punches: Punch[]
@@ -172,11 +175,11 @@ export default function Attendance() {
 
   const visible = rows.filter((r) => {
     if (siteFilter && r.entry.site_id !== siteFilter) return false
-    const zone = (r.arrival && !r.arrival.gps_ok) || (r.departure && !r.departure.gps_ok)
+    const suspect = isSuspect(r.arrival) || isSuspect(r.departure)
     if (filter === 'late') return r.state === 'late'
     if (filter === 'missing') return r.state === 'missing'
-    if (filter === 'zone') return zone
-    if (filter === 'problems') return r.state === 'late' || r.state === 'missing' || zone || (r.departure && r.earlyMin > GRACE_MIN)
+    if (filter === 'suspect') return suspect
+    if (filter === 'problems') return r.state === 'late' || r.state === 'missing' || suspect || (r.departure && r.earlyMin > GRACE_MIN)
     return true
   })
 
@@ -187,12 +190,12 @@ export default function Attendance() {
       present: working.filter((r) => r.arrival).length,
       late: rows.filter((r) => r.state === 'late').length,
       missing: rows.filter((r) => r.state === 'missing').length,
-      zone: rows.filter((r) => (r.arrival && !r.arrival.gps_ok) || (r.departure && !r.departure.gps_ok)).length,
+      suspect: rows.filter((r) => isSuspect(r.arrival) || isSuspect(r.departure)).length,
     }
   }, [rows])
 
   async function exportDay() {
-    const header = ['Agent', 'Site', 'Garde', 'Début prévu', 'Arrivée', 'Retard (min)', 'Départ', 'Statut', 'GPS arrivée', 'Saisie']
+    const header = ['Agent', 'Site', 'Garde', 'Début prévu', 'Arrivée', 'Retard (min)', 'Départ', 'Statut', 'GPS arrivée', 'Saisie', 'Alertes']
     const label: Record<RowState, string> = { upcoming: 'À venir', expected: 'Attendu', missing: 'Non pointé', ontime: 'À l’heure', late: 'En retard', absent: 'Absence prévue' }
     await writeExcelFile(
       [
@@ -209,10 +212,11 @@ export default function Attendance() {
             label[r.state],
             r.arrival ? (r.arrival.distance_m == null ? 'Sans GPS' : `${r.arrival.distance_m} m${r.arrival.gps_ok ? '' : ' (hors zone)'}`) : '',
             r.arrival && isManual(r.arrival) ? 'Responsable' : '',
+            [...new Set([r.arrival, r.departure].flatMap((p) => (p ? suspectFlags(p) : [])))].map((f) => FLAG_INFO[f].label).join(', '),
           ].map((v) => ({ value: v as string | number })),
         ),
       ],
-      { columns: [{ width: 24 }, { width: 22 }, { width: 10 }, { width: 11 }, { width: 10 }, { width: 11 }, { width: 10 }, { width: 14 }, { width: 18 }, { width: 12 }] },
+      { columns: [{ width: 24 }, { width: 22 }, { width: 10 }, { width: 11 }, { width: 10 }, { width: 11 }, { width: 10 }, { width: 14 }, { width: 18 }, { width: 12 }, { width: 36 }] },
     ).toFile(`pointages-${date}.xlsx`)
   }
 
@@ -237,7 +241,7 @@ export default function Attendance() {
         <StatCard icon={UserCheck} label="Présents" value={`${stats.present}/${stats.planned}`} tone="green" sub="Gardes du jour" />
         <StatCard icon={AlarmClock} label="Retards" value={stats.late} tone={stats.late ? 'amber' : 'green'} sub={`Au-delà de ${GRACE_MIN} min`} />
         <StatCard icon={UserX} label="Non pointés" value={stats.missing} tone={stats.missing ? 'red' : 'green'} sub="Garde commencée" />
-        <StatCard icon={MapPinOff} label="Hors zone GPS" value={stats.zone} tone={stats.zone ? 'amber' : 'green'} sub="À vérifier" />
+        <StatCard icon={ShieldAlert} label="Pointages suspects" value={stats.suspect} tone={stats.suspect ? 'red' : 'green'} sub="Selfie, GPS, téléphone partagé" />
       </div>
 
       <Card>
@@ -257,7 +261,7 @@ export default function Attendance() {
                   ['problems', 'À traiter'],
                   ['late', 'Retards'],
                   ['missing', 'Non pointés'],
-                  ['zone', 'Hors zone'],
+                  ['suspect', 'Suspects'],
                 ] as const
               ).map(([k, l]) => (
                 <button key={k} onClick={() => setFilter(k)} className={cx('rounded-lg px-3 py-1.5 whitespace-nowrap transition-all', filter === k ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800')}>
@@ -336,9 +340,15 @@ export default function Attendance() {
 }
 
 function PunchBadge({ punch, manual }: { punch: Punch; manual: boolean }) {
+  const alerts = suspectFlags(punch).filter((f) => f !== 'hors_zone' && f !== 'sans_gps')
   return (
     <span className="inline-flex items-center gap-1.5">
       <span className="tabular font-semibold text-ink-900">{timeAt(punch.punched_at)}</span>
+      {alerts.length > 0 && (
+        <span title={alerts.map((f) => FLAG_INFO[f].label).join(' · ')}>
+          <ShieldAlert className="size-3.5 text-red-500" />
+        </span>
+      )}
       {manual ? (
         <span title="Saisi par un responsable"><Hand className="size-3.5 text-brand-500" /></span>
       ) : punch.distance_m == null ? (
@@ -461,7 +471,14 @@ function PunchDetailModal({
                   <span className="inline-flex items-center gap-1 text-sm font-semibold text-ink-800"><MapPin className="size-3.5 text-brand-500" />{site?.name ?? '—'}</span>
                   {isManual(p) && <Badge tone="brand">Saisi par un responsable</Badge>}
                   {p.distance_m != null && (p.gps_ok ? <Badge tone="green">{p.distance_m} m · sur place</Badge> : <Badge tone="amber">{p.distance_m} m · hors zone</Badge>)}
-                  {p.distance_m == null && !isManual(p) && <Badge>Sans GPS</Badge>}
+                  {p.accuracy_m != null && <span className="text-ink-400">± {p.accuracy_m} m</span>}
+                  {punchFlags(p)
+                    .filter((f) => !['hors_zone', 'sans_gps', 'saisie_responsable', 'envoi_tardif'].includes(f))
+                    .map((f) => (
+                      <span key={f} title={FLAG_INFO[f].hint}>
+                        <Badge tone="red">{FLAG_INFO[f].label}</Badge>
+                      </span>
+                    ))}
                   {p.latitude != null && (
                     <a href={`https://www.google.com/maps?q=${p.latitude},${p.longitude}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand-600 hover:underline">
                       Carte <ExternalLink className="size-3" />
@@ -471,6 +488,7 @@ function PunchDetailModal({
                     <span className="text-ink-400">reçu à {timeAt(p.received_at)} (hors ligne)</span>
                   )}
                 </p>
+                {p.photo_path && <PunchPhoto path={p.photo_path} />}
               </li>
             )
           })}
@@ -574,5 +592,21 @@ function ManualPunchModal({
         {error && <Callout tone="danger">{error}</Callout>}
       </form>
     </Modal>
+  )
+}
+
+/** Selfie du pointage (adresse temporaire, chargée à l'ouverture) */
+function PunchPhoto({ path }: { path: string }) {
+  const [url, setUrl] = useState<string | null | 'loading'>('loading')
+  const [big, setBig] = useState(false)
+  useEffect(() => {
+    punchPhotoUrl(path).then(setUrl)
+  }, [path])
+  if (url === 'loading') return <div className="mt-2 size-16 animate-pulse rounded-xl bg-ink-100" />
+  if (!url) return <p className="mt-2 text-xs text-ink-400">Selfie indisponible</p>
+  return (
+    <button type="button" onClick={() => setBig(!big)} className="mt-2 block" title={big ? 'Réduire' : 'Agrandir'}>
+      <img src={url} alt="Selfie du pointage" className={cx('rounded-xl object-cover ring-1 ring-ink-200 transition-all', big ? 'w-56' : 'size-16')} />
+    </button>
   )
 }

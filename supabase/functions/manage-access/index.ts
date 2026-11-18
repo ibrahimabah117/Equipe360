@@ -35,6 +35,11 @@ function normalizePhone(raw: string): string | null {
 const ROLES = ["owner", "manager", "agent"] as const;
 type Role = (typeof ROLES)[number];
 
+// Patron et chefs de poste : le mot de passe reçu par WhatsApp est provisoire,
+// l'appli leur demande d'en choisir un à la première connexion.
+// Les agents gardent le code simple donné par leur chef.
+const mustChange = (role: Role) => role !== "agent";
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return fail("Méthode non autorisée", 405);
@@ -71,13 +76,16 @@ Deno.serve(async (req) => {
   if (!callerRole) {
     const { data: m } = await admin
       .from("company_members")
-      .select("role, companies!inner(status)")
+      .select("role, companies!inner(status, paid_until)")
       .eq("company_id", companyId)
       .eq("user_id", caller.id)
       .maybeSingle();
     // deno-lint-ignore no-explicit-any
-    const status = (m as any)?.companies?.status;
-    if (m && status === "active" && (m.role === "owner" || m.role === "manager")) {
+    const c = (m as any)?.companies as { status: string; paid_until: string | null } | undefined;
+    // Même règle que private.company_open : bloqué 7 jours après la fin de l'abonnement
+    const graceLimit = new Date(Date.now() - 7 * 86400e3).toISOString().slice(0, 10);
+    const open = c?.status === "active" && (!c.paid_until || c.paid_until >= graceLimit);
+    if (m && open && (m.role === "owner" || m.role === "manager")) {
       callerRole = m.role as Role;
     }
   }
@@ -119,7 +127,7 @@ Deno.serve(async (req) => {
       email,
       password,
       email_confirm: true,
-      user_metadata: { phone, display_name: displayName },
+      user_metadata: { phone, display_name: displayName, must_change_password: mustChange(role) },
     });
     if (cErr || !created.user) return fail("Création du compte impossible : " + (cErr?.message ?? ""));
 
@@ -135,7 +143,7 @@ Deno.serve(async (req) => {
       await admin.auth.admin.deleteUser(created.user.id);
       return fail("Liaison à l'entreprise impossible : " + mErr.message);
     }
-    return json({ ok: true, user_id: created.user.id, phone });
+    return json({ ok: true, user_id: created.user.id, phone, temporary: mustChange(role) });
   }
 
   if (action === "reset_password" || action === "remove") {
@@ -157,9 +165,12 @@ Deno.serve(async (req) => {
       if (!isPhoneAccount) return fail("Ce compte se connecte par e-mail : mot de passe à changer par son titulaire");
       const password = String(body.password ?? "");
       if (password.length < 6) return fail("Le mot de passe doit faire au moins 6 caractères");
-      const { error } = await admin.auth.admin.updateUserById(targetId, { password });
+      const { error } = await admin.auth.admin.updateUserById(targetId, {
+        password,
+        user_metadata: { ...(tu?.user?.user_metadata ?? {}), must_change_password: mustChange(target.role as Role) },
+      });
       if (error) return fail(error.message);
-      return json({ ok: true });
+      return json({ ok: true, temporary: mustChange(target.role as Role) });
     }
 
     const { error: dErr } = await admin

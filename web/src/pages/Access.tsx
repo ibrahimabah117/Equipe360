@@ -39,7 +39,7 @@ export default function Access() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [creating, setCreating] = useState<string | boolean>(false)
   const [resetting, setResetting] = useState<{ m: Member; password: string } | null>(null)
-  const [creds, setCreds] = useState<{ name: string; phone: string; password: string } | null>(null)
+  const [creds, setCreds] = useState<{ name: string; phone: string; password: string; temporary: boolean } | null>(null)
   const [removing, setRemoving] = useState<Member | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -74,8 +74,8 @@ export default function Access() {
     if (!resetting) return
     setBusy(true)
     try {
-      await manageAccess({ action: 'reset_password', company_id: company.id, user_id: resetting.m.user_id, password: resetting.password })
-      setCreds({ name: nameOf(resetting.m), phone: resetting.m.phone ?? '', password: resetting.password })
+      const res = await manageAccess({ action: 'reset_password', company_id: company.id, user_id: resetting.m.user_id, password: resetting.password })
+      setCreds({ name: nameOf(resetting.m), phone: resetting.m.phone ?? '', password: resetting.password, temporary: res.temporary ?? resetting.m.role !== 'agent' })
       setResetting(null)
     } catch (e) {
       toast.error(errorMessage(e))
@@ -213,7 +213,7 @@ export default function Access() {
       </Modal>
 
       <Modal open={!!creds} onClose={() => setCreds(null)} title="Mot de passe changé" footer={<Button onClick={() => setCreds(null)}>Terminé</Button>}>
-        {creds && <CredentialsCard name={creds.name} phone={creds.phone} password={creds.password} companyName={company.name} />}
+        {creds && <CredentialsCard name={creds.name} phone={creds.phone} password={creds.password} companyName={company.name} temporary={creds.temporary} />}
       </Modal>
 
       <ConfirmDialog
@@ -255,7 +255,7 @@ function CreateAccessModal({
   const [password, setPassword] = useState(generatePin())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [done, setDone] = useState<{ name: string; phone: string; password: string } | null>(null)
+  const [done, setDone] = useState<{ name: string; phone: string; password: string; temporary: boolean } | null>(null)
 
   function pickEmployee(id: string) {
     setEmployeeId(id)
@@ -282,7 +282,7 @@ function CreateAccessModal({
         display_name: name.trim() || null,
         employee_id: employeeId || null,
       })
-      setDone({ name: name.trim() || 'cette personne', phone: res.phone!, password })
+      setDone({ name: name.trim() || 'cette personne', phone: res.phone!, password, temporary: res.temporary ?? role !== 'agent' })
       onCreated()
     } catch (e) {
       setError(errorMessage(e))
@@ -319,7 +319,7 @@ function CreateAccessModal({
       }
     >
       {done ? (
-        <CredentialsCard name={done.name} phone={done.phone} password={done.password} companyName={companyName} />
+        <CredentialsCard name={done.name} phone={done.phone} password={done.password} companyName={companyName} temporary={done.temporary} />
       ) : (
         <form id="access-form" onSubmit={submit} className="space-y-4">
           {roles.length > 1 && (

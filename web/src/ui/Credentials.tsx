@@ -9,17 +9,21 @@ export function CredentialsCard({
   phone,
   password,
   companyName,
+  temporary = false,
 }: {
   name: string
   phone: string
   password: string
   companyName: string
+  /** Mot de passe provisoire : à changer à la première connexion */
+  temporary?: boolean
 }) {
   const [copied, setCopied] = useState(false)
   const url = window.location.origin
   const text =
     `Bonjour ${name},\n\nVotre accès Équipe360 (${companyName}) est prêt.\n` +
-    `• Lien : ${url}\n• Numéro : ${formatPhone(phone)}\n• Mot de passe : ${password}\n\n` +
+    `• Lien : ${url}\n• Numéro : ${formatPhone(phone)}\n• Mot de passe ${temporary ? 'provisoire ' : ''}: ${password}\n\n` +
+    (temporary ? `À la première connexion, vous choisirez votre propre mot de passe.\n` : '') +
     `Ouvrez le lien sur votre téléphone, puis « Ajouter à l’écran d’accueil ».`
   const wa = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
 
@@ -27,12 +31,13 @@ export function CredentialsCard({
     <div className="space-y-4">
       <Callout tone="success" title="Accès créé">
         Transmettez ces identifiants à {name}. Le mot de passe ne sera plus affiché ensuite.
+        {temporary && ' Il est provisoire : à sa première connexion, la personne devra choisir le sien.'}
       </Callout>
       <dl className="divide-y divide-ink-100 rounded-xl ring-1 ring-ink-100">
         {[
           ['Lien', url],
           ['Numéro', formatPhone(phone)],
-          ['Mot de passe', password],
+          [temporary ? 'Mot de passe provisoire' : 'Mot de passe', password],
         ].map(([k, v]) => (
           <div key={k} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
             <dt className="text-ink-500">{k}</dt>

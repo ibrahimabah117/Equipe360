@@ -39,11 +39,13 @@ La configuration est dans `web/wrangler.jsonc`.
 
 - **Admins Équipe360** : onglet « Administrateur », par e-mail (liste dans `private.platform_admins`).
 - **Clients et agents** : onglet « Téléphone ». Les accès sont créés depuis « Comptes d’accès » et envoyés par WhatsApp.
+  Patron et chefs de poste : le mot de passe envoyé est provisoire, ils choisissent le leur à la première connexion. Les agents gardent le code donné par leur chef. Tout le monde peut changer son mot de passe (icône clé, en bas du menu).
 
 ## Étapes
 
 1. ✅ Base de données, connexion par téléphone, employés et sites, import Excel, QR codes
 2. ✅ Planning, absences, remplaçants
 3. ✅ Pointage QR + GPS, mode hors ligne
+   - Anti-fraude : selfie obligatoire (option par client), alertes automatiques (téléphone partagé, position figée ou imprécise, hors zone, selfie manquant, envoi tardif), filtre « Suspects »
 4. ✅ Calcul de la paie, fiches PDF
 5. Mise en ligne (Cloudflare) et test avec un premier client

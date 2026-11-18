@@ -55,6 +55,8 @@ body {
 
 @media print {
   .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  tr { break-inside: avoid; }
   body { background: white; }
 }
 

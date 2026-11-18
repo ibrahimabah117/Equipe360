@@ -25,6 +25,9 @@ import { cacheGet, cacheSet, getLast, isNetworkError, submitPunch, syncQueue, us
 import { timeAt, TZ } from '../lib/dates'
 import { Avatar, Badge, Button, Callout, Card, cx, Select, Spinner } from '../ui'
 import { Logo } from '../ui/Logo'
+import { Selfie } from '../ui/Selfie'
+import { deviceId } from '../lib/photos'
+import type { Company } from '../lib/supabase'
 
 interface PunchSite {
   id: string
@@ -201,6 +204,8 @@ export function PunchPage() {
   const [done, setDone] = useState<{ kind: 'in' | 'out'; at: string; result?: PunchResult } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
+  const [photoRequired, setPhotoRequired] = useState(false)
+  const [photo, setPhoto] = useState<string | null>(null)
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000)
@@ -246,6 +251,24 @@ export function PunchPage() {
 
   const targetEmployeeId = forEmployee === 'me' ? myEmployeeId : forEmployee || null
   const proxy = forEmployee !== 'me'
+
+  // Selfie obligatoire ? (réglage de l'entreprise, gardé pour le hors-ligne)
+  useEffect(() => {
+    if (!companyId) return
+    const key = 'photoRequired.' + companyId
+    setPhotoRequired(cacheGet<boolean>(key) ?? cacheGet<Company>('company.' + companyId)?.punch_photo_required ?? false)
+    supabase
+      .from('companies')
+      .select('punch_photo_required')
+      .eq('id', companyId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return
+        cacheSet(key, !!data.punch_photo_required)
+        setPhotoRequired(!!data.punch_photo_required)
+      })
+  }, [companyId])
+  const needSelfie = photoRequired && !proxy
 
   // Dernier pointage connu sur le serveur
   useEffect(() => {
@@ -296,6 +319,7 @@ export function PunchPage() {
     if (!s && site !== null) return
     if (proxy && !forEmployee) return setError('Choisissez l’agent à pointer.')
     if (!proxy && !myEmployeeId && !canManage) return setError('Votre compte n’est lié à aucune fiche employé. Contactez votre responsable.')
+    if (needSelfie && !photo) return setError('Prenez votre selfie avant de pointer.')
     setPhase('sending')
     // Laisser au GPS quelques secondes s'il n'a pas encore de position
     let p = pos
@@ -320,6 +344,9 @@ export function PunchPage() {
       employee_id: proxy ? forEmployee : null,
       employee_name: proxyName,
       site_name: s?.name ?? null,
+      company_id: s?.company_id ?? null,
+      device_id: deviceId(),
+      photo: needSelfie ? photo : null,
     })
     if (res.status === 'sent') {
       setDone({ kind, at, result: res.result })
@@ -457,6 +484,13 @@ export function PunchPage() {
                 <Avatar name={proxyName} size="sm" /> Pointage pour un agent sans smartphone — noté « saisi par un responsable ».
               </p>
             )}
+          </Card>
+        )}
+
+        {needSelfie && (
+          <Card className="p-4">
+            <p className="mb-3 text-[13px] font-medium text-ink-700">Selfie obligatoire</p>
+            <Selfie value={photo} onChange={(v) => { setPhoto(v); setError(null) }} />
           </Card>
         )}
 

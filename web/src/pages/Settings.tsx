@@ -85,6 +85,8 @@ export default function Settings() {
             </form>
           </Card>
 
+          <PunchSettingsCard />
+
           <PayrollSettingsCard companyId={company.id} />
 
           <Card>
@@ -298,6 +300,45 @@ function PayrollSettingsCard({ companyId }: { companyId: string }) {
           <Button type="submit" loading={saving}>Enregistrer</Button>
         </div>
       </form>
+    </Card>
+  )
+}
+
+/** Réglages du pointage : selfie obligatoire */
+function PunchSettingsCard() {
+  const { company, reload } = useCompany()
+  const toast = useToast()
+  const [on, setOn] = useState(!!company.punch_photo_required)
+  const [saving, setSaving] = useState(false)
+
+  async function change(v: boolean) {
+    setOn(v)
+    setSaving(true)
+    const { error } = await supabase.from('companies').update({ punch_photo_required: v }).eq('id', company.id)
+    setSaving(false)
+    if (error) {
+      setOn(!v)
+      return toast.error(errorMessage(error))
+    }
+    toast.success(v ? 'Selfie obligatoire activé' : 'Selfie obligatoire désactivé')
+    reload()
+  }
+
+  return (
+    <Card>
+      <div className="border-b border-ink-100 px-5 py-4">
+        <h2 className="font-semibold">Pointage</h2>
+        <p className="text-sm text-ink-500">Contrôles contre les pointages faits à la place d’un collègue.</p>
+      </div>
+      <div className="space-y-3 p-5">
+        <div className={saving ? 'pointer-events-none opacity-60' : ''}>
+          <Toggle checked={on} onChange={change} label="Selfie obligatoire quand un agent pointe avec son téléphone" />
+        </div>
+        <p className="text-sm text-ink-500">
+          La photo est visible dans « Pointages », en ouvrant la fiche de l’agent. Les alertes (téléphone partagé, position figée ou imprécise,
+          hors zone, selfie manquant) sont calculées automatiquement dans tous les cas.
+        </p>
+      </div>
     </Card>
   )
 }

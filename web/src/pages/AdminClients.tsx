@@ -14,7 +14,7 @@ import {
   Users,
 } from 'lucide-react'
 import { errorMessage, manageAccess, supabase, type Company } from '../lib/supabase'
-import { formatDate, formatGNF, generatePin, isTrial, normalizePhone, sectorLabel, SECTORS, TRIAL_NOTE } from '../lib/format'
+import { formatDate, formatGNF, generatePin, isTrial, normalizePhone, sectorLabel, SECTORS, subscriptionState, TRIAL_NOTE, GRACE_DAYS } from '../lib/format'
 import {
   Badge,
   Button,
@@ -49,6 +49,8 @@ const inOneMonth = () => {
 function subscriptionBadge(c: Company) {
   if (c.status === 'suspended') return <Badge tone="red" dot>Suspendu</Badge>
   if (!c.paid_until) return <Badge tone="neutral" dot>Sans échéance</Badge>
+  // Bloqué automatiquement 7 jours après la fin de l'abonnement
+  if (subscriptionState(c.paid_until, today()) === 'blocked') return <Badge tone="red" dot>Bloqué (impayé)</Badge>
   if (isTrial(c)) return c.paid_until < today() ? <Badge tone="amber" dot>Fin d’essai</Badge> : <Badge tone="brand" dot>Essai gratuit</Badge>
   if (c.paid_until < today()) return <Badge tone="amber" dot>Impayé</Badge>
   return <Badge tone="green" dot>Actif</Badge>
@@ -237,7 +239,7 @@ function NewClientModal({ open, onClose, onCreated }: { open: boolean; onClose: 
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [done, setDone] = useState<{ name: string; phone: string; password: string; company: string } | null>(null)
+  const [done, setDone] = useState<{ name: string; phone: string; password: string; company: string; temporary: boolean } | null>(null)
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value })
 
   function close() {
@@ -278,7 +280,7 @@ function NewClientModal({ open, onClose, onCreated }: { open: boolean; onClose: 
           password: form.ownerPassword,
           display_name: form.ownerName.trim() || null,
         })
-        setDone({ name: form.ownerName.trim() || 'le propriétaire', phone: res.phone!, password: form.ownerPassword, company: form.name.trim() })
+        setDone({ name: form.ownerName.trim() || 'le propriétaire', phone: res.phone!, password: form.ownerPassword, company: form.name.trim(), temporary: res.temporary ?? true })
       } else {
         toast.success(`${form.name} est créé`)
         close()
@@ -313,7 +315,7 @@ function NewClientModal({ open, onClose, onCreated }: { open: boolean; onClose: 
       }
     >
       {done ? (
-        <CredentialsCard name={done.name} phone={done.phone} password={done.password} companyName={done.company} />
+        <CredentialsCard name={done.name} phone={done.phone} password={done.password} companyName={done.company} temporary={done.temporary} />
       ) : (
         <form id="new-client" onSubmit={submit} className="space-y-6">
           <section className="grid gap-4 sm:grid-cols-2">
@@ -420,7 +422,7 @@ function SubscriptionModal({ company, onClose, onSaved }: { company: Company; on
         {isTrial({ admin_note: note }) && (
           <Callout tone="info">Ce client est en essai gratuit. Au premier paiement, cliquez sur « +1 mois » : il deviendra client payant.</Callout>
         )}
-        <Field label="Payé jusqu’au" hint="Après un paiement, ajoutez un mois en un clic.">
+        <Field label="Payé jusqu’au" hint={`Après un paiement, ajoutez un mois en un clic. Sans paiement, l’accès est coupé automatiquement ${GRACE_DAYS} jours après cette date.`}>
           <div className="flex gap-2">
             <Input type="date" value={paidUntil} onChange={(e) => setPaidUntil(e.target.value)} />
             <Button type="button" variant="secondary" onClick={addMonth}>+1 mois</Button>
