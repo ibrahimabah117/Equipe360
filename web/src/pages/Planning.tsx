@@ -373,8 +373,8 @@ export default function Planning() {
                       <Fragment key={g.id || 'none'}>
                         <tr>
                           <td colSpan={9} className="sticky left-0 border-b border-ink-100 bg-white px-4 pt-4 pb-2">
-                            <span className="inline-flex items-center gap-2 text-xs font-semibold tracking-wide text-ink-500 uppercase">
-                              <MapPin className="size-3.5" /> {g.name}
+                            <span className="inline-flex items-center gap-2 text-base font-semibold text-ink-900">
+                              <MapPin className="size-4 text-brand-500" /> {g.name}
                               <span className="font-normal text-ink-400 normal-case">· {g.people.length} agent{g.people.length > 1 ? 's' : ''}</span>
                             </span>
                           </td>
@@ -441,8 +441,9 @@ export default function Planning() {
                         <tr>
                           <td colSpan={8} className="sticky left-0 border-b border-ink-100 bg-white px-4 pt-4 pb-2">
                             <div className="flex items-center gap-2">
-                              <span className="text-[13px] font-semibold text-ink-900">{site.name}</span>
-                              {site.zone && <span className="text-xs text-ink-400">· {site.zone}</span>}
+                              <MapPin className="size-4 text-brand-500" />
+                              <span className="text-base font-semibold text-ink-900">{site.name}</span>
+                              {site.zone && <span className="text-sm text-ink-500">· {site.zone}</span>}
                               <button onClick={() => setNeedsSite(site.id)} className="ml-2 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-brand-600 hover:bg-brand-50">
                                 <Settings2 className="size-3.5" /> Agents requis
                               </button>
