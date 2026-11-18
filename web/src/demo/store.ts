@@ -74,8 +74,10 @@ function seed() {
     radius_m: 150, qr_token: tok(), active: true, created_at: now,
   }))
 
-  db.site_shift_needs = db.sites.flatMap((s, i) => [
-    { company_id: CID, site_id: s.id, shift_type_id: 'd3m0-sh-j', headcount: i === 0 ? 2 : 1 },
+  // 1 agent de jour et 1 de nuit par site : le planning de démo (3 agents par site en cycle) couvre tout,
+  // seules les absences et les oublis de pointage font apparaître des trous.
+  db.site_shift_needs = db.sites.flatMap((s) => [
+    { company_id: CID, site_id: s.id, shift_type_id: 'd3m0-sh-j', headcount: 1 },
     { company_id: CID, site_id: s.id, shift_type_id: 'd3m0-sh-n', headcount: 1 },
   ])
 
