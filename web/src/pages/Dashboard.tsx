@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { useCompany } from '../lib/company'
 import { formatDate, formatGNF, isTrial, sectorLabel } from '../lib/format'
 import { Badge, Card, cx, PageHeader, PageLoader, StatCard } from '../ui'
+import CoverageChart from './dashboard/CoverageChart'
 
 interface Stats {
   employees: number
@@ -99,6 +100,8 @@ export default function Dashboard() {
         />
         <StatCard icon={KeyRound} label="Comptes d’accès" value={s.accounts} sub={`${s.agentsWithAccess} liés à un employé`} />
       </div>
+
+      <CoverageChart companyId={company.id} base={base} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">

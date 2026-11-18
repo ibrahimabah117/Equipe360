@@ -88,7 +88,7 @@ function isNight(s: ShiftType) {
   return h >= 18 || h < 5
 }
 
-function shiftMinutes(s: ShiftType) {
+export function shiftMinutes(s: ShiftType) {
   const [h1, m1] = s.start_time.split(':').map(Number)
   const [h2, m2] = s.end_time.split(':').map(Number)
   let d = h2 * 60 + m2 - (h1 * 60 + m1)

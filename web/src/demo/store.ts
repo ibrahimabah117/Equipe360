@@ -77,8 +77,10 @@ function seed() {
     radius_m: 150, qr_token: tok(), active: true, created_at: now,
   }))
 
-  db.site_shift_needs = db.sites.flatMap((s, i) => [
-    { company_id: CID, site_id: s.id, shift_type_id: 'd3m0-sh-j', headcount: i === 0 ? 2 : 1 },
+  // 1 agent de jour et 1 de nuit par site : le planning de démo (3 agents par site en cycle) couvre tout,
+  // seules les absences et les oublis de pointage font apparaître des trous.
+  db.site_shift_needs = db.sites.flatMap((s) => [
+    { company_id: CID, site_id: s.id, shift_type_id: 'd3m0-sh-j', headcount: 1 },
     { company_id: CID, site_id: s.id, shift_type_id: 'd3m0-sh-n', headcount: 1 },
   ])
 
@@ -349,9 +351,8 @@ function rest(table: string, method: string, params: URLSearchParams, headers: H
     }
     const total = rows.length
     const offset = Number(params.get('offset') ?? 0)
-    if (offset) rows = rows.slice(offset)
     const limit = params.get('limit')
-    if (limit) rows = rows.slice(0, Number(limit))
+    if (offset || limit) rows = rows.slice(offset, limit ? offset + Number(limit) : undefined)
     rows = rows.map((r) => embed(table, r, select))
     const range = { 'content-range': `0-${Math.max(0, rows.length - 1)}/${total}` }
     if (method === 'HEAD') return new Response(null, { status: 200, headers: range })
