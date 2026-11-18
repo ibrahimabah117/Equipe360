@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { Building2, CalendarX2, CheckCircle2, ChevronRight, CloudOff, FileText, LogIn, LogOut, MapPinOff, PauseCircle, ScanLine, ShieldX } from 'lucide-react'
 import { useAuth } from '../lib/auth'
@@ -11,8 +11,9 @@ import { formatDate, formatGNF, ROLE_LABELS, sectorLabel } from '../lib/format'
 import { periodLabel } from '../lib/payroll'
 import { Avatar, Badge, Button, Callout, Card, cx, PageHeader, PageLoader } from '../ui'
 import { Logo } from '../ui/Logo'
+import { SupportWhatsApp } from '../ui/SupportWhatsApp'
 
-function CenterCard({ icon: Icon, title, text, tone = 'brand' }: { icon: typeof ShieldX; title: string; text: string; tone?: 'brand' | 'red' | 'amber' }) {
+function CenterCard({ icon: Icon, title, text, tone = 'brand', action }: { icon: typeof ShieldX; title: string; text: string; tone?: 'brand' | 'red' | 'amber'; action?: ReactNode }) {
   const { signOut } = useAuth()
   const cls = { brand: 'bg-brand-50 text-brand-600', red: 'bg-red-50 text-red-600', amber: 'bg-amber-50 text-amber-600' }[tone]
   return (
@@ -24,6 +25,7 @@ function CenterCard({ icon: Icon, title, text, tone = 'brand' }: { icon: typeof 
         </span>
         <h1 className="mt-4 text-lg font-semibold">{title}</h1>
         <p className="mt-2 text-sm text-ink-500">{text}</p>
+        {action && <div className="mt-5 flex justify-center">{action}</div>}
         <Button variant="secondary" icon={LogOut} className="mt-6" onClick={signOut}>Se déconnecter</Button>
       </Card>
     </div>
@@ -58,6 +60,7 @@ function Blocked() {
             ? `L’abonnement de ${expired.company_name} a pris fin le ${formatDate(expired.paid_until)}. L’accès est coupé pour toute l’équipe jusqu’au paiement. Vos données sont conservées : contactez l’équipe Équipe360 sur WhatsApp pour renouveler, l’accès revient aussitôt.`
             : `L’accès de ${expired.company_name} à Équipe360 est coupé car l’abonnement n’est pas payé. Prévenez votre responsable. Vos pointages sont conservés.`
         }
+        action={boss ? <SupportWhatsApp className="sm:items-center" label="Renouveler sur WhatsApp" message={`Bonjour Équipe360, je souhaite renouveler l’abonnement de ${expired.company_name}.`} /> : undefined}
       />
     )
   }
@@ -68,6 +71,7 @@ function Blocked() {
         tone="amber"
         title="Compte suspendu"
         text="L’accès de votre entreprise à Équipe360 est temporairement suspendu. Contactez votre responsable ou l’équipe Équipe360."
+        action={<SupportWhatsApp className="sm:items-center" message="Bonjour Équipe360, l’accès de mon entreprise est suspendu. Pouvez-vous m’aider ?" />}
       />
     )
   }
