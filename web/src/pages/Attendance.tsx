@@ -13,6 +13,7 @@ import {
   IdCard,
   LogIn,
   LogOut,
+  MapPin,
   MapPinOff,
   Plus,
   RefreshCw,
@@ -303,7 +304,7 @@ export default function Attendance() {
                 <li key={p.id} className="flex items-center gap-3 px-5 py-3 text-sm">
                   <Avatar name={e?.full_name} size="sm" />
                   <span className="flex-1 font-medium">{e?.full_name ?? '—'}</span>
-                  <span className="text-ink-500">{data.sites.find((s) => s.id === p.site_id)?.name}</span>
+                  <span className="inline-flex items-center gap-1 font-semibold text-ink-800"><MapPin className="size-3.5 text-brand-500" />{data.sites.find((s) => s.id === p.site_id)?.name}</span>
                   <PunchBadge punch={p} manual={isManual(p)} />
                 </li>
               )
@@ -383,11 +384,15 @@ function AttendanceRow({
             {r.employee?.full_name ?? '—'}
             {r.entry.status === 'replacement' && <span className="ml-2 text-xs font-normal text-brand-600">remplaçant</span>}
           </p>
+          <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm font-semibold text-ink-800">
+            <MapPin className="size-4 shrink-0 text-brand-500" />
+            {r.site?.name ?? '—'}
+          </p>
           <p className="flex items-center gap-1.5 truncate text-xs text-ink-500">
             <span className={cx('inline-flex size-4 items-center justify-center rounded ring-1 ring-inset', toneClasses[tone])}>
               <ShiftIcon tone={tone} className="size-2.5" />
             </span>
-            {r.shift.label} {hhmm(r.shift.start_time)}–{hhmm(r.shift.end_time)} · {r.site?.name ?? '—'}
+            {r.shift.label} {hhmm(r.shift.start_time)}–{hhmm(r.shift.end_time)}
           </p>
         </div>
       </button>
@@ -453,7 +458,7 @@ function PunchDetailModal({
                   <span className="ml-2 text-xs font-normal text-ink-400">{dayLong(dateAt(p.punched_at))}</span>
                 </p>
                 <p className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-ink-500">
-                  {site?.name ?? '—'}
+                  <span className="inline-flex items-center gap-1 text-sm font-semibold text-ink-800"><MapPin className="size-3.5 text-brand-500" />{site?.name ?? '—'}</span>
                   {isManual(p) && <Badge tone="brand">Saisi par un responsable</Badge>}
                   {p.distance_m != null && (p.gps_ok ? <Badge tone="green">{p.distance_m} m · sur place</Badge> : <Badge tone="amber">{p.distance_m} m · hors zone</Badge>)}
                   {p.distance_m == null && !isManual(p) && <Badge>Sans GPS</Badge>}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Clock3, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, Clock3, MapPin, ShieldCheck } from 'lucide-react'
 import { addDays, conakryInstant, dayLong, dayNum, dayShort, today } from '../../lib/dates'
 import { supabase } from '../../lib/supabase'
 import { computeCoverage, coverageRate, type CoverageDay } from '../../lib/coverage'
@@ -214,12 +214,14 @@ function DayDetail({ day, names, base }: { day: CoverageDay; names: Names; base:
                 <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600"><Clock3 className="size-3.5" /></span>
               )}
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium text-ink-900">
-                  {it.kind === 'vide' ? `${it.count} poste${it.count > 1 ? 's' : ''} vide${it.count > 1 ? 's' : ''}` : names.employees[it.employee_id!] ?? 'Agent'}
+                <span className="flex items-center gap-1.5 truncate text-[15px] font-semibold text-ink-900">
+                  <MapPin className="size-4 shrink-0 text-brand-500" />
+                  {site(it.site_id)}
                 </span>
-                <span className="block truncate text-xs text-ink-500">
-                  {site(it.site_id)} · {shift(it.shift_type_id)}
-                  {it.kind === 'non_pointe' && ' · pas de pointage d’arrivée'}
+                <span className="block truncate text-sm text-ink-600">
+                  {it.kind === 'vide' ? `${it.count} poste${it.count > 1 ? 's' : ''} vide${it.count > 1 ? 's' : ''}` : names.employees[it.employee_id!] ?? 'Agent'}
+                  {' · '}{shift(it.shift_type_id)}
+                  {it.kind === 'non_pointe' && ' · pas pointé'}
                 </span>
               </span>
             </li>
