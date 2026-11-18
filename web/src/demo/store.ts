@@ -58,6 +58,9 @@ function seed() {
     { id: uid(), name: 'Propreté Conakry', sector: 'nettoyage', phone: null, status: 'suspended', monthly_price: 300000, paid_until: addDays(t, -45), admin_note: null, created_at: now },
   ]
 
+  // Démo : selfie obligatoire pour l'entreprise de démonstration
+  for (const c of db.companies) c.punch_photo_required = c.id === CID
+
   db.shift_types = [
     { id: 'd3m0-sh-j', company_id: CID, code: 'J', label: 'Jour', start_time: '07:00:00', end_time: '19:00:00' },
     { id: 'd3m0-sh-n', company_id: CID, code: 'N', label: 'Nuit', start_time: '19:00:00', end_time: '07:00:00' },
@@ -173,6 +176,7 @@ function seed() {
       latitude: site.latitude + (rand() - 0.5) * 0.001, longitude: site.longitude + (rand() - 0.5) * 0.001,
       distance_m: dist, gps_ok: !out, client_id: uid(),
       recorded_by: rand() < 0.06 ? USERS.manager.id : null,
+      accuracy_m: between(5, 40), device_id: 'demo-' + e.employee_id, photo_path: null, flags: [] as string[],
     })
     if (at <= nowMs) db.punches.push(mk('in', at))
     const leave = endMs + between(-5, 12) * 60000
@@ -190,6 +194,23 @@ function seed() {
     if (b) db.punches = db.punches.filter((p) => !(p.employee_id === b.employee_id && +new Date(p.punched_at) >= startToday - 3 * 3600e3))
     const pc = c && inOf(c)
     if (pc) Object.assign(pc, { distance_m: 512, gps_ok: false, recorded_by: null })
+    // Un 4e agent a pointé avec le téléphone d'un collègue
+    const d = dayToday[3]
+    const pd = d && inOf(d)
+    if (pd && pc) {
+      pd.device_id = pc.device_id
+      pd.flags = ['appareil_partage']
+      pc.flags = [...(pc.flags ?? []), 'appareil_partage']
+    }
+  }
+
+  // Alertes des pointages générés (comme le serveur)
+  for (const p of db.punches) {
+    const f = new Set<string>(p.flags ?? [])
+    if (p.recorded_by) f.add('saisie_responsable')
+    else if (!p.gps_ok) f.add('hors_zone')
+    if (+new Date(p.received_at) - +new Date(p.punched_at) > 30 * 60000) f.add('envoi_tardif')
+    p.flags = [...f]
   }
 
   // Paie : mois précédent validé
@@ -425,14 +446,29 @@ function rpc(name: string, p: Row) {
       if (!employee_id) return pgError('Compte non lié à un employé')
       const dup = db.punches.find((x) => x.client_id === p.p_client_id)
       const dist = p.p_latitude != null && site.latitude != null ? distance([p.p_latitude, p.p_longitude], [site.latitude, site.longitude]) : null
+      const proxy = !!p.p_employee_id
+      const gps_ok = dist != null && dist <= site.radius_m
+      const flags: string[] = []
+      if (proxy) flags.push('saisie_responsable')
+      else {
+        if (dist != null && !gps_ok) flags.push('hors_zone')
+        else if (dist == null && site.latitude != null) flags.push('sans_gps')
+        if (p.p_accuracy != null && p.p_accuracy > 100) flags.push('gps_imprecis')
+        const shared = p.p_device_id && db.punches.some((x) => x.device_id === p.p_device_id && x.employee_id !== employee_id && !(x.flags ?? []).includes('saisie_responsable') && Math.abs(+new Date(x.punched_at) - +new Date(p.p_punched_at)) < 12 * 3600e3)
+        if (shared) flags.push('appareil_partage')
+        const company = db.companies.find((c) => c.id === site.company_id)
+        if (company?.punch_photo_required && !p.p_photo_path) flags.push('sans_photo')
+      }
+      if (Date.now() - +new Date(p.p_punched_at) > 30 * 60000) flags.push('envoi_tardif')
       const row = dup ?? {
         id: uid(), company_id: site.company_id, employee_id, site_id: site.id, kind: p.p_kind,
         punched_at: p.p_punched_at, received_at: new Date().toISOString(), latitude: p.p_latitude, longitude: p.p_longitude,
-        distance_m: dist, gps_ok: dist != null && dist <= site.radius_m, client_id: p.p_client_id,
-        recorded_by: p.p_employee_id ? me?.id : me?.id,
+        distance_m: dist, gps_ok, client_id: p.p_client_id,
+        recorded_by: me?.id,
+        accuracy_m: p.p_accuracy ?? null, device_id: p.p_device_id ?? null, photo_path: p.p_photo_path ?? null, flags,
       }
       if (!dup) db.punches.push(row)
-      return json([{ punch_id: row.id, site_name: site.name, distance_m: row.distance_m, gps_ok: row.gps_ok }])
+      return json([{ punch_id: row.id, site_name: site.name, distance_m: row.distance_m, gps_ok: row.gps_ok, flags: row.flags }])
     }
   }
   return pgError('Fonction inconnue : ' + name)

@@ -33,6 +33,8 @@ export interface Company {
   monthly_price: number
   paid_until: string | null
   admin_note: string | null
+  /** Selfie obligatoire quand un agent pointe avec son téléphone */
+  punch_photo_required: boolean
   created_at: string
 }
 
@@ -147,4 +149,11 @@ export interface Punch {
   gps_ok: boolean
   client_id: string
   recorded_by: string | null
+  /** Précision GPS annoncée par le téléphone (m) */
+  accuracy_m: number | null
+  device_id: string | null
+  /** Selfie dans le stockage « punch-photos » */
+  photo_path: string | null
+  /** Alertes calculées par le serveur (voir lib/flags.ts) */
+  flags: string[]
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { supabase } from './supabase'
+import { photoPath, uploadPunchPhoto } from './photos'
 
 /* ------------------------------------------------------------------ Cache local */
 
@@ -43,6 +44,12 @@ export interface QueuedPunch {
   employee_id: string | null
   employee_name: string | null
   site_name: string | null
+  /** Entreprise du site : sert au chemin du selfie */
+  company_id?: string | null
+  device_id?: string | null
+  /** Selfie en petit JPEG (data URL), gardé ici tant qu'il n'est pas envoyé */
+  photo?: string | null
+  photo_uploaded?: boolean
   error?: string
 }
 
@@ -51,6 +58,7 @@ export interface PunchResult {
   site_name: string
   distance_m: number | null
   gps_ok: boolean
+  flags?: string[]
 }
 
 const QUEUE_KEY = PREFIX + 'punchQueue'
@@ -67,7 +75,12 @@ function write(key: string, list: QueuedPunch[]) {
   try {
     localStorage.setItem(key, JSON.stringify(list))
   } catch {
-    /* stockage indisponible */
+    // Stockage plein : on sacrifie les selfies plutôt que les pointages
+    try {
+      localStorage.setItem(key, JSON.stringify(list.map((p) => (p.photo_uploaded ? p : { ...p, photo: null }))))
+    } catch {
+      /* stockage indisponible */
+    }
   }
   emit()
 }
@@ -80,7 +93,19 @@ function emit() {
 }
 let syncing = false
 
-async function send(p: QueuedPunch) {
+async function send(p: QueuedPunch): Promise<{ data: unknown; error: { message: string } | null; status?: number }> {
+  // 1. le selfie d'abord : le serveur vérifie qu'il est bien arrivé
+  let path: string | null = null
+  if (p.photo && p.company_id) {
+    path = photoPath(p.company_id, p.client_id)
+    if (!p.photo_uploaded) {
+      const up = await uploadPunchPhoto(path, p.photo)
+      if (up.error && isNetworkError(up.error, up.status)) return { data: null, error: up.error, status: 0 }
+      if (up.error) path = null // refusé : le pointage part sans photo (et sera signalé)
+      else p.photo_uploaded = true
+    }
+  }
+  // 2. le pointage
   return supabase.rpc('punch', {
     p_qr_token: p.qr_token,
     p_kind: p.kind,
@@ -89,6 +114,9 @@ async function send(p: QueuedPunch) {
     p_latitude: p.latitude,
     p_longitude: p.longitude,
     p_employee_id: p.employee_id,
+    p_accuracy: p.accuracy == null ? null : Math.round(p.accuracy),
+    p_device_id: p.device_id ?? null,
+    p_photo_path: path,
   })
 }
 
@@ -122,7 +150,7 @@ export async function syncQueue() {
       const { error, status } = await send(p)
       if (error && isNetworkError(error, status)) break // toujours pas de réseau : on réessaiera
       write(QUEUE_KEY, read(QUEUE_KEY).filter((x) => x.client_id !== p.client_id))
-      if (error) write(FAILED_KEY, [...read(FAILED_KEY), { ...p, error: error.message }])
+      if (error) write(FAILED_KEY, [...read(FAILED_KEY), { ...p, photo: null, error: error.message }])
     }
   } finally {
     syncing = false

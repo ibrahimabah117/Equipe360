@@ -45,5 +45,6 @@ La configuration est dans `web/wrangler.jsonc`.
 1. ✅ Base de données, connexion par téléphone, employés et sites, import Excel, QR codes
 2. ✅ Planning, absences, remplaçants
 3. ✅ Pointage QR + GPS, mode hors ligne
+   - Anti-fraude : selfie obligatoire (option par client), alertes automatiques (téléphone partagé, position figée ou imprécise, hors zone, selfie manquant, envoi tardif), filtre « Suspects »
 4. ✅ Calcul de la paie, fiches PDF
 5. Mise en ligne (Cloudflare) et test avec un premier client
