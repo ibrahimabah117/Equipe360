@@ -1,3 +1,4 @@
+import { useVocab } from '../../lib/sector'
 import { useMemo, useState, type FormEvent } from 'react'
 import { ArrowRightLeft, Plus, Trash2, UserCheck, UserX, Users } from 'lucide-react'
 import {
@@ -38,6 +39,7 @@ function ReplacementPicker({
   onDone: () => void
   onCancel: () => void
 }) {
+  const v = useVocab()
   const toast = useToast()
   const [pick, setPick] = useState('')
   const [loading, setLoading] = useState(false)
@@ -78,11 +80,11 @@ function ReplacementPicker({
       <p className="mb-2 text-[13px] font-medium text-emerald-900">Choisir un remplaçant</p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Select value={pick} onChange={(e) => setPick(e.target.value)}>
-          <option value="">Agents disponibles…</option>
+          <option value="">{v.Workers} disponibles…</option>
           {candidates.map(({ e, other, sameSite }) => (
             <option key={e.id} value={e.id}>
               {e.full_name}
-              {sameSite ? ' · même site' : ''}
+              {sameSite ? ` · même ${v.site}` : ''}
               {other ? ` · déjà en ${other} ce jour` : ''}
             </option>
           ))}
@@ -92,7 +94,7 @@ function ReplacementPicker({
           <Button onClick={save} loading={loading} disabled={!pick} icon={UserCheck}>Valider</Button>
         </div>
       </div>
-      {candidates.length === 0 && <p className="mt-2 text-xs text-ink-500">Aucun agent libre sur cette garde.</p>}
+      {candidates.length === 0 && <p className="mt-2 text-xs text-ink-500">Aucun {v.worker} libre sur {v.ceShift}.</p>}
     </div>
   )
 }
@@ -112,6 +114,7 @@ function EntryRow({
   showSite?: boolean
   onChanged: () => void
 }) {
+  const v = useVocab()
   const toast = useToast()
   const emp = byId(data.employees)
   const site = byId(data.sites)
@@ -150,7 +153,7 @@ function EntryRow({
     const { error } = await supabase.from('schedule_entries').delete().eq('id', entry.id)
     setBusy(false)
     if (error) return toast.error(errorMessage(error))
-    toast.success('Garde retirée')
+    toast.success(`${v.Shift} retiré${v.sx()}`)
     onChanged()
   }
 
@@ -203,7 +206,7 @@ function EntryRow({
             <button
               onClick={remove}
               disabled={busy}
-              title="Retirer la garde"
+              title={`Retirer ${v.laShift}`}
               className="inline-flex size-8 items-center justify-center rounded-lg text-ink-400 hover:bg-red-50 hover:text-red-600"
             >
               <Trash2 className="size-4" />
@@ -248,6 +251,7 @@ export function DayModal({
   onClose: () => void
   onChanged: () => void
 }) {
+  const v = useVocab()
   const toast = useToast()
   const emp = data.employees.find((e) => e.id === employeeId)
   const entries = data.entries.filter((e) => e.employee_id === employeeId && e.work_date === date)
@@ -269,13 +273,13 @@ export function DayModal({
       status: 'planned',
     })
     setLoading(false)
-    if (error) return toast.error(error.code === '23505' ? 'Cette garde existe déjà.' : errorMessage(error))
-    toast.success('Garde ajoutée')
+    if (error) return toast.error(error.code === '23505' ? `${v.ceShift.charAt(0).toUpperCase() + v.ceShift.slice(1)} existe déjà.` : errorMessage(error))
+    toast.success(`${v.Shift} ajouté${v.sx()}`)
     onChanged()
   }
 
   return (
-    <Modal open onClose={onClose} title={emp?.full_name ?? 'Agent'} description={dayLong(date)} size="lg">
+    <Modal open onClose={onClose} title={emp?.full_name ?? v.Worker} description={dayLong(date)} size="lg">
       {entries.length > 0 ? (
         <ul className="-my-3 divide-y divide-ink-100">
           {entries.map((e) => (
@@ -283,14 +287,14 @@ export function DayModal({
           ))}
         </ul>
       ) : (
-        <p className="rounded-xl bg-ink-50 px-4 py-3 text-sm text-ink-500">Repos — aucune garde prévue ce jour.</p>
+        <p className="rounded-xl bg-ink-50 px-4 py-3 text-sm text-ink-500">Repos — {v.aucunShift} prévu{v.sx()} ce jour.</p>
       )}
 
       {free.length > 0 && (
         <div className="mt-5 border-t border-ink-100 pt-5">
-          <p className="mb-3 text-sm font-medium text-ink-900">Ajouter une garde</p>
+          <p className="mb-3 text-sm font-medium text-ink-900">Ajouter {v.unShift}</p>
           {data.sites.length === 0 ? (
-            <Callout tone="warning">Ajoutez d’abord un site.</Callout>
+            <Callout tone="warning">Ajoutez d’abord {v.unSite}.</Callout>
           ) : (
             <div className="grid gap-2 sm:grid-cols-[210px_1fr_auto]">
               <Select value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
@@ -329,6 +333,7 @@ export function SlotModal({
   onClose: () => void
   onChanged: () => void
 }) {
+  const v = useVocab()
   const toast = useToast()
   const site = data.sites.find((s) => s.id === siteId)
   const shift = data.shifts.find((s) => s.id === shiftId)
@@ -359,7 +364,7 @@ export function SlotModal({
     setLoading(false)
     if (error) return toast.error(errorMessage(error))
     setPick('')
-    toast.success('Agent ajouté')
+    toast.success(`${v.Worker} ajouté`)
     onChanged()
   }
 
@@ -368,13 +373,13 @@ export function SlotModal({
       open
       onClose={onClose}
       size="lg"
-      title={`${site?.name ?? 'Site'} — ${shift?.label ?? ''}`}
+      title={`${site?.name ?? v.Site} — ${shift?.label ?? ''}`}
       description={`${dayLong(date)} · ${shift ? `${hhmm(shift.start_time)}–${hhmm(shift.end_time)}` : ''}`}
     >
       <div className="mb-4 flex items-center gap-3 rounded-xl bg-ink-50 px-4 py-3 ring-1 ring-ink-100">
         <Users className="size-5 text-ink-400" />
         <p className="flex-1 text-sm text-ink-700">
-          <span className="tabular font-semibold text-ink-900">{present}</span> agent{present > 1 ? 's' : ''} présent{present > 1 ? 's' : ''}
+          <span className="tabular font-semibold text-ink-900">{present}</span> {present > 1 ? v.workers : v.worker} présent{present > 1 ? 's' : ''}
           {need > 0 && <> sur <span className="tabular font-semibold">{need}</span> requis</>}
         </p>
         {need > 0 &&
@@ -392,10 +397,10 @@ export function SlotModal({
       )}
 
       <div className="mt-5 border-t border-ink-100 pt-5">
-        <p className="mb-3 text-sm font-medium text-ink-900">Affecter un agent</p>
+        <p className="mb-3 text-sm font-medium text-ink-900">Affecter un {v.worker}</p>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Select value={pick} onChange={(e) => setPick(e.target.value)}>
-            <option value="">Agents libres sur cette garde…</option>
+            <option value="">{v.Workers} libres sur {v.ceShift}…</option>
             {candidates.map((e) => (
               <option key={e.id} value={e.id}>{e.full_name}{e.default_site_id === siteId ? ' · site habituel' : ''}</option>
             ))}
@@ -420,6 +425,7 @@ export function NeedsModal({
   onClose: () => void
   onChanged: () => void
 }) {
+  const v = useVocab()
   const toast = useToast()
   const site = data.sites.find((s) => s.id === siteId)
   const [values, setValues] = useState<Record<string, string>>(() =>
@@ -449,7 +455,7 @@ export function NeedsModal({
       open
       onClose={onClose}
       size="sm"
-      title="Agents requis"
+      title="Effectif requis"
       description={site?.name}
       footer={
         <>
@@ -459,7 +465,7 @@ export function NeedsModal({
       }
     >
       <p className="mb-4 text-sm text-ink-500">
-        Nombre d’agents à placer sur ce site pour chaque garde. Le planning signale en rouge les postes non couverts.
+        Nombre d’{v.workers} à placer sur {v.ceSite} pour chaque horaire. Le planning signale en rouge les postes non couverts.
       </p>
       <div className="space-y-3">
         {data.shifts.map((s) => {

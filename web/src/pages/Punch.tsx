@@ -317,7 +317,7 @@ export function PunchPage() {
   async function punch(kind: 'in' | 'out') {
     setError(null)
     if (!s && site !== null) return
-    if (proxy && !forEmployee) return setError('Choisissez l’agent à pointer.')
+    if (proxy && !forEmployee) return setError('Choisissez la personne à pointer.')
     if (!proxy && !myEmployeeId && !canManage) return setError('Votre compte n’est lié à aucune fiche employé. Contactez votre responsable.')
     if (needSelfie && !photo) return setError('Prenez votre selfie avant de pointer.')
     setPhase('sending')
@@ -474,14 +474,14 @@ export function PunchPage() {
             <label className="mb-1.5 block text-[13px] font-medium text-ink-700">Pointer pour</label>
             <Select value={forEmployee} onChange={(e) => setForEmployee(e.target.value)}>
               {myEmployeeId && <option value="me">Moi-même</option>}
-              {!myEmployeeId && <option value="">Choisir un agent…</option>}
+              {!myEmployeeId && <option value="">Choisir une personne…</option>}
               {employees.filter((e) => e.id !== myEmployeeId).map((e) => (
                 <option key={e.id} value={e.id}>{e.full_name}</option>
               ))}
             </Select>
             {proxy && forEmployee && (
               <p className="mt-2 flex items-center gap-2 text-xs text-ink-500">
-                <Avatar name={proxyName} size="sm" /> Pointage pour un agent sans smartphone — noté « saisi par un responsable ».
+                <Avatar name={proxyName} size="sm" /> Pointage pour une personne sans smartphone — noté « saisi par un responsable ».
               </p>
             )}
           </Card>

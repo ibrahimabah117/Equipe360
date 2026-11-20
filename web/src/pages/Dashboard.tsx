@@ -8,6 +8,7 @@ import { formatDate, formatGNF, isTrial, lastAccessDay, sectorLabel, subscriptio
 import { Badge, Callout, Card, cx, PageHeader, PageLoader, StatCard } from '../ui'
 import CoverageChart from './dashboard/CoverageChart'
 import { SupportWhatsApp } from '../ui/SupportWhatsApp'
+import { useVocab } from '../lib/sector'
 
 interface Stats {
   employees: number
@@ -24,6 +25,7 @@ interface Stats {
 
 export default function Dashboard() {
   const { company, role } = useCompany()
+  const v = useVocab()
   const [s, setS] = useState<Stats | null>(null)
 
   useEffect(() => {
@@ -68,11 +70,11 @@ export default function Dashboard() {
   if (!s) return <PageLoader />
 
   const steps = [
-    { done: s.sites > 0, title: 'Ajouter vos sites', text: 'Les lieux gardés : banque, ambassade, entrepôt…', to: `${base}/sites`, icon: MapPin },
-    { done: s.sitesNoGps === 0 && s.sites > 0, title: 'Enregistrer la position GPS', text: 'Pour vérifier que l’agent pointe bien sur place.', to: `${base}/sites`, icon: MapPinOff },
+    { done: s.sites > 0, title: `Ajouter vos ${v.sites}`, text: `Vos lieux de travail : ${v.siteExamples}`, to: `${base}/sites`, icon: MapPin },
+    { done: s.sitesNoGps === 0 && s.sites > 0, title: 'Enregistrer la position GPS', text: `Pour vérifier que l’${v.worker} pointe bien sur place.`, to: `${base}/sites`, icon: MapPinOff },
     { done: s.employees > 0, title: 'Importer vos employés', text: 'Depuis un fichier Excel ou un par un.', to: `${base}/employes`, icon: Upload },
-    { done: false, title: 'Imprimer les QR codes', text: 'Un code à afficher dans chaque site.', to: `${base}/sites/qr`, icon: QrCode },
-    { done: s.upcomingEntries > 0, title: 'Préparer le planning', text: 'Générez les gardes en un clic avec un cycle jour/nuit.', to: `${base}/planning`, icon: CalendarDays },
+    { done: false, title: 'Imprimer les QR codes', text: `Un code à afficher dans chaque ${v.site}.`, to: `${base}/sites/qr`, icon: QrCode },
+    { done: s.upcomingEntries > 0, title: 'Préparer le planning', text: `Générez les ${v.shifts} en un clic avec un rythme de travail.`, to: `${base}/planning`, icon: CalendarDays },
     { done: s.agentsWithAccess > 0, title: 'Donner les accès', text: 'Numéro + mot de passe, envoyés par WhatsApp.', to: `${base}/acces`, icon: KeyRound },
   ]
   const progress = steps.filter((x) => x.done).length
@@ -91,10 +93,10 @@ export default function Dashboard() {
 
       <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         <StatCard icon={Users} label="Employés actifs" value={s.employees} />
-        <StatCard icon={MapPin} label="Sites actifs" value={s.sites} tone="green" />
+        <StatCard icon={MapPin} label={`${v.Sites} actifs`} value={s.sites} tone="green" />
         <StatCard
           icon={MapPinOff}
-          label="Sites sans GPS"
+          label={`${v.Sites} sans GPS`}
           value={s.sitesNoGps}
           tone={s.sitesNoGps ? 'amber' : 'green'}
           sub={s.sitesNoGps ? 'À compléter' : 'Tout est en ordre'}
@@ -169,8 +171,8 @@ export default function Dashboard() {
             </div>
             <ul className="divide-y divide-ink-100 text-sm">
               {[
-                { icon: CalendarCheck2, label: 'Gardes prévues', value: s.todayShifts, tone: 'text-brand-600 bg-brand-50' },
-                { icon: UserCheck, label: 'Agents arrivés (pointage)', value: s.todayPresent, tone: 'text-emerald-600 bg-emerald-50' },
+                { icon: CalendarCheck2, label: `${v.Shifts} prévu${v.sx(2)}`, value: s.todayShifts, tone: 'text-brand-600 bg-brand-50' },
+                { icon: UserCheck, label: `${v.Workers} arrivés (pointage)`, value: s.todayPresent, tone: 'text-emerald-600 bg-emerald-50' },
                 { icon: UserX, label: 'Absences', value: s.todayAbsent, tone: s.todayAbsent ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50' },
                 { icon: AlertTriangle, label: 'Postes non couverts', value: s.todayUncovered, tone: s.todayUncovered ? 'text-red-600 bg-red-50' : 'text-emerald-600 bg-emerald-50' },
               ].map((r) => (
@@ -207,7 +209,7 @@ function SubscriptionNotice({ paidUntil, companyName }: { paidUntil: string | nu
       <div className="mb-6">
         <Callout tone="danger" title="Abonnement expiré">
           Votre abonnement a pris fin le {formatDate(paidUntil)}. Sans paiement, l’accès sera coupé pour toute l’équipe
-          (vous et vos agents) après le {formatDate(lastAccessDay(paidUntil))}. Renouvelez dès maintenant pour éviter la coupure.
+          (vous et votre personnel) après le {formatDate(lastAccessDay(paidUntil))}. Renouvelez dès maintenant pour éviter la coupure.
           <SupportWhatsApp className="mt-3 !items-start" label="Renouveler sur WhatsApp" message={renew} />
         </Callout>
       </div>

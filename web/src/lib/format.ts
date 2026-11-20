@@ -55,8 +55,11 @@ export function generatePin(): string {
 
 export const SECTORS: { value: string; label: string }[] = [
   { value: 'gardiennage', label: 'Gardiennage / sécurité' },
-  { value: 'nettoyage', label: 'Nettoyage' },
   { value: 'btp', label: 'BTP / chantier' },
+  { value: 'usine', label: 'Usine / production' },
+  { value: 'mines', label: 'Mines (sous-traitance)' },
+  { value: 'ecole', label: 'École / enseignement' },
+  { value: 'nettoyage', label: 'Nettoyage / propreté' },
   { value: 'commerce', label: 'Commerce / distribution' },
   { value: 'sante', label: 'Santé' },
   { value: 'hotellerie', label: 'Hôtellerie / restauration' },

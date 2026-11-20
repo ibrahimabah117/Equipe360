@@ -1,3 +1,4 @@
+import { useVocab } from '../lib/sector'
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import writeExcelFile from 'write-excel-file/browser'
@@ -69,6 +70,7 @@ export async function loadPayrollSettings(companyId: string): Promise<Omit<Payro
 
 export default function Payroll() {
   const { company, isOwnerLevel } = useCompany()
+  const vo = useVocab()
   const toast = useToast()
   const [period, setPeriod] = useState(thisMonth())
   const [run, setRun] = useState<PayrollRun | null | undefined>(undefined)
@@ -201,7 +203,7 @@ export default function Payroll() {
   )
 
   async function exportExcel() {
-    const header = ['Employé', 'Poste', 'Mode de paie', 'Tarif', 'Heures', 'Salaire de base', 'Gardes faites', 'Gardes prévues', 'Abs. injustifiées', 'Retenue absences', 'Retards (min)', 'Retenue retards', 'Heures sup. (h)', 'Heures sup. (GNF)', 'Prime de nuit', 'Prime ancienneté', 'Prime except.', 'Avance', 'Autres retenues', 'Brut', 'Net à payer']
+    const header = [vo.Worker, 'Poste', 'Mode de paie', 'Tarif', 'Heures', 'Salaire de base', `${vo.Shifts} fait${vo.sx(2)}`, `${vo.Shifts} prévu${vo.sx(2)}`, 'Abs. injustifiées', 'Retenue absences', 'Retards (min)', 'Retenue retards', 'Heures sup. (h)', 'Heures sup. (GNF)', 'Prime de nuit', 'Prime ancienneté', 'Prime except.', 'Avance', 'Autres retenues', 'Brut', 'Net à payer']
     const n = (v: number) => ({ value: Number(v), format: '#,##0' })
     await writeExcelFile(
       [
@@ -300,7 +302,7 @@ export default function Payroll() {
           {!validated && period >= thisMonth() && (
             <div className="mb-4">
               <Callout tone="warning" title="Mois en cours">
-                Seules les gardes déjà commencées sont comptées. Recalculez la paie en fin de mois avant de la valider.
+                Seul{vo.sx(2)} les {vo.shifts} déjà commencé{vo.sx(2)} sont compté{vo.sx(2)}. Recalculez la paie en fin de mois avant de la valider.
               </Callout>
             </div>
           )}
@@ -321,7 +323,7 @@ export default function Payroll() {
                 <tr>
                   <Th>Employé</Th>
                   <Th className="hidden text-right md:table-cell">Base</Th>
-                  <Th className="hidden text-center lg:table-cell">Gardes</Th>
+                  <Th className="hidden text-center lg:table-cell">{vo.Shifts}</Th>
                   <Th className="hidden text-right lg:table-cell">Primes</Th>
                   <Th className="hidden text-right md:table-cell">Retenues</Th>
                   <Th className="text-right">Net à payer</Th>
@@ -399,7 +401,7 @@ export default function Payroll() {
         loading={busy}
         title={`Valider la paie de ${periodLabel(period)} ?`}
         confirmLabel="Valider et verrouiller"
-        text={`Les ${slips.length} bulletins seront verrouillés (net total : ${formatGNF(sum.net)}) et les agents pourront consulter leur fiche de paie dans l’appli.`}
+        text={`Les ${slips.length} bulletins seront verrouillés (net total : ${formatGNF(sum.net)}) et les ${vo.workers} pourront consulter leur fiche de paie dans l’appli.`}
         onConfirm={() => setStatus('validated')}
       />
       <ConfirmDialog
@@ -409,7 +411,7 @@ export default function Payroll() {
         danger
         title="Rouvrir cette paie ?"
         confirmLabel="Rouvrir"
-        text="Les bulletins redeviennent modifiables et ne sont plus visibles par les agents jusqu’à la prochaine validation."
+        text={`Les bulletins redeviennent modifiables et ne sont plus visibles par les ${vo.workers} jusqu’à la prochaine validation.`}
         onConfirm={() => setStatus('draft')}
       />
     </>
@@ -446,6 +448,7 @@ function PayslipModal({
   onClose: () => void
   onSaved: () => void
 }) {
+  const vo = useVocab()
   const toast = useToast()
   const [bonus, setBonus] = useState(String(slip.bonus || ''))
   const [bonusNote, setBonusNote] = useState(slip.bonus_note ?? '')
@@ -487,7 +490,7 @@ function PayslipModal({
       onClose={onClose}
       size="lg"
       title={employee?.full_name ?? 'Bulletin'}
-      description={`${employee?.job_title ?? ''} · ${slip.shifts_worked} garde${slip.shifts_worked > 1 ? 's' : ''} effectuée${slip.shifts_worked > 1 ? 's' : ''} sur ${slip.shifts_planned} prévue${slip.shifts_planned > 1 ? 's' : ''}`}
+      description={`${employee?.job_title ?? ''} · ${vo.nShifts(slip.shifts_worked)} effectué${vo.sx(slip.shifts_worked)} sur ${slip.shifts_planned} prévu${vo.sx(slip.shifts_planned)}`}
       footer={
         locked ? (
           <Button onClick={onClose}>Fermer</Button>
@@ -511,7 +514,7 @@ function PayslipModal({
             <Line label="Prime d’ancienneté" sub={`${slip.seniority_years} an${slip.seniority_years > 1 ? 's' : ''}${employee?.hire_date ? '' : ' (date d’embauche non renseignée)'}`} value={slip.seniority_bonus} tone="plus" />
             <Line
               label="Absences injustifiées"
-              sub={slip.pay_mode === 'monthly' ? `${slip.unjustified_absences} × 1/${settings.absence_divisor} du salaire` : `${slip.unjustified_absences} garde${slip.unjustified_absences > 1 ? 's' : ''} non payée${slip.unjustified_absences > 1 ? 's' : ''}`}
+              sub={slip.pay_mode === 'monthly' ? `${slip.unjustified_absences} × 1/${settings.absence_divisor} du salaire` : `${vo.nShifts(slip.unjustified_absences)} non payé${vo.sx(slip.unjustified_absences)}`}
               value={slip.absence_deduction}
               tone="minus"
             />
@@ -519,7 +522,7 @@ function PayslipModal({
           </div>
           {slip.shifts_unpunched > 0 && (
             <p className="mt-2 text-xs text-ink-500">
-              {slip.shifts_unpunched} garde{slip.shifts_unpunched > 1 ? 's' : ''} sans pointage d’arrivée
+              {vo.nShifts(slip.shifts_unpunched)} sans pointage d’arrivée
               {settings.unpunched_as_absence ? ' (comptée(s) comme absence injustifiée)' : ' (payée(s) normalement)'}.
             </p>
           )}

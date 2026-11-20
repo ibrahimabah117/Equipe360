@@ -1,3 +1,4 @@
+import { useVocab } from '../../lib/sector'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Clock3, MapPin, ShieldCheck } from 'lucide-react'
@@ -27,6 +28,7 @@ interface Names {
 }
 
 export default function CoverageChart({ companyId, base }: { companyId: string; base: string }) {
+  const v = useVocab()
   const [days, setDays] = useState<CoverageDay[] | null>(null)
   const [names, setNames] = useState<Names>({ sites: {}, employees: {}, shifts: {} })
   const [failed, setFailed] = useState(false)
@@ -115,7 +117,7 @@ export default function CoverageChart({ companyId, base }: { companyId: string; 
         <div className="h-56 animate-pulse bg-ink-50/60" />
       ) : days.every((d) => d.required === 0) ? (
         <p className="px-5 py-8 text-center text-sm text-ink-500">
-          Pas encore de gardes passées. Le graphique se remplira dès que le{' '}
+          Pas encore de {v.shifts} passé{v.sx(2)}. Le graphique se remplira dès que le{' '}
           <Link to={`${base}/planning`} className="font-medium text-brand-600">planning</Link> aura commencé.
         </p>
       ) : (
@@ -156,7 +158,7 @@ export default function CoverageChart({ companyId, base }: { companyId: string; 
               ))}
             </div>
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-600">
-              <Legend className="bg-emerald-500" label="Agent présent (pointé)" />
+              <Legend className="bg-emerald-500" label={`${v.Worker} présent (pointé)`} />
               <Legend className="bg-amber-400" label="Prévu mais pas pointé" />
               <Legend className="bg-red-500" label="Poste vide" />
             </div>
@@ -188,8 +190,9 @@ function Legend({ className, label }: { className: string; label: string }) {
 }
 
 function DayDetail({ day, names, base }: { day: CoverageDay; names: Names; base: string }) {
+  const v = useVocab()
   const site = (id: string) => names.sites[id] ?? 'Site supprimé'
-  const shift = (id: string) => names.shifts[id] ?? 'Garde'
+  const shift = (id: string) => names.shifts[id] ?? v.Shift
   const sorted = [...day.issues].sort((a, b) => (a.kind === b.kind ? site(a.site_id).localeCompare(site(b.site_id)) : a.kind === 'vide' ? -1 : 1))
 
   return (
@@ -199,7 +202,7 @@ function DayDetail({ day, names, base }: { day: CoverageDay; names: Names; base:
         <p className="tabular text-xs text-ink-500">{day.punched} / {day.required} postes tenus</p>
       </div>
       {day.required === 0 ? (
-        <p className="px-5 pb-5 text-sm text-ink-500">Aucune garde commencée ce jour-là.</p>
+        <p className="px-5 pb-5 text-sm text-ink-500">{v.AucunShift} commencé{v.sx()} ce jour-là.</p>
       ) : sorted.length === 0 ? (
         <p className="flex items-center gap-2 px-5 pb-5 text-sm text-emerald-700">
           <ShieldCheck className="size-4" /> Tous les postes ont été tenus.
@@ -219,7 +222,7 @@ function DayDetail({ day, names, base }: { day: CoverageDay; names: Names; base:
                   {site(it.site_id)}
                 </span>
                 <span className="block truncate text-sm text-ink-600">
-                  {it.kind === 'vide' ? `${it.count} poste${it.count > 1 ? 's' : ''} vide${it.count > 1 ? 's' : ''}` : names.employees[it.employee_id!] ?? 'Agent'}
+                  {it.kind === 'vide' ? `${it.count} poste${it.count > 1 ? 's' : ''} vide${it.count > 1 ? 's' : ''}` : names.employees[it.employee_id!] ?? v.Worker}
                   {' · '}{shift(it.shift_type_id)}
                   {it.kind === 'non_pointe' && ' · pas pointé'}
                 </span>

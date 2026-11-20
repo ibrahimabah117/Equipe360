@@ -56,7 +56,7 @@ function CompanyArea() {
 function CompanyShell() {
   const { company, role } = useCompany()
   return (
-    <AppShell companyId={company.id} companyName={company.name} role={role}>
+    <AppShell companyId={company.id} companyName={company.name} companySector={company.sector} role={role}>
       <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route index element={<ManagerOnly><Dashboard /></ManagerOnly>} />

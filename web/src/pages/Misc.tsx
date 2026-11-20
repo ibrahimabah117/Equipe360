@@ -1,3 +1,4 @@
+import { useVocab } from '../lib/sector'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { Building2, CalendarX2, CheckCircle2, ChevronRight, CloudOff, FileText, LogIn, LogOut, MapPinOff, PauseCircle, ScanLine, ShieldX } from 'lucide-react'
@@ -139,6 +140,7 @@ export function CompanyNotFound() {
 /** Espace de l'agent : pointer, voir ses gardes et ses derniers pointages (fonctionne hors ligne) */
 export function AgentHome() {
   const { company, employeeId } = useCompany()
+  const v = useVocab()
   const { queue, failed, syncing } = usePunchQueue()
   const cacheKey = `agent.${company.id}.${employeeId}`
   const [d, setD] = useState<AgentData | null>(() => cacheGet<AgentData>(cacheKey))
@@ -198,7 +200,7 @@ export function AgentHome() {
       <div className="mb-5 flex items-center gap-3">
         <Avatar name={emp?.full_name} size="lg" />
         <div className="min-w-0">
-          <h1 className="truncate text-xl font-semibold">{emp?.full_name ?? 'Agent'}</h1>
+          <h1 className="truncate text-xl font-semibold">{emp?.full_name ?? v.Worker}</h1>
           <p className="truncate text-sm text-ink-500">{emp?.job_title ?? ''}{site ? ` · ${site.name}` : ''}</p>
         </div>
       </div>
@@ -210,7 +212,7 @@ export function AgentHome() {
           </span>
           <span className="flex-1">
             <span className="block text-lg font-semibold">Pointer</span>
-            <span className="block text-sm text-white/80">Scanner le QR code du site</span>
+            <span className="block text-sm text-white/80">Scanner le QR code {v.duSite}</span>
           </span>
           <ChevronRight className="size-5 text-white/70" />
         </div>
@@ -309,11 +311,11 @@ export function AgentHome() {
 
       <Card className="mt-4">
         <div className="border-b border-ink-100 px-5 py-4">
-          <h2 className="font-semibold">Mes prochaines gardes</h2>
+          <h2 className="font-semibold">Mes prochain{v.sx(2)} {v.shifts}</h2>
           <p className="text-sm text-ink-500">14 prochains jours</p>
         </div>
         {!d?.upcoming.length ? (
-          <p className="px-5 py-6 text-center text-sm text-ink-500">Aucune garde prévue pour le moment.</p>
+          <p className="px-5 py-6 text-center text-sm text-ink-500">{v.AucunShift} prévu{v.sx()} pour le moment.</p>
         ) : (
           <ul className="divide-y divide-ink-100">
             {d.upcoming.map((e) => {

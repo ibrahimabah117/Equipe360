@@ -1,3 +1,4 @@
+import { useVocab } from '../lib/sector'
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import writeExcelFile from 'write-excel-file/browser'
@@ -77,6 +78,7 @@ interface Row {
 
 export default function Attendance() {
   const { company } = useCompany()
+  const v = useVocab()
   const [date, setDate] = useState(today())
   const [siteFilter, setSiteFilter] = useState('')
   const [filter, setFilter] = useState<'all' | 'problems' | 'late' | 'missing' | 'suspect'>('all')
@@ -195,7 +197,7 @@ export default function Attendance() {
   }, [rows])
 
   async function exportDay() {
-    const header = ['Agent', 'Site', 'Garde', 'Début prévu', 'Arrivée', 'Retard (min)', 'Départ', 'Statut', 'GPS arrivée', 'Saisie', 'Alertes']
+    const header = [v.Worker, v.Site, v.Shift, 'Début prévu', 'Arrivée', 'Retard (min)', 'Départ', 'Statut', 'GPS arrivée', 'Saisie', 'Alertes']
     const label: Record<RowState, string> = { upcoming: 'À venir', expected: 'Attendu', missing: 'Non pointé', ontime: 'À l’heure', late: 'En retard', absent: 'Absence prévue' }
     await writeExcelFile(
       [
@@ -238,9 +240,9 @@ export default function Attendance() {
       />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        <StatCard icon={UserCheck} label="Présents" value={`${stats.present}/${stats.planned}`} tone="green" sub="Gardes du jour" />
+        <StatCard icon={UserCheck} label="Présents" value={`${stats.present}/${stats.planned}`} tone="green" sub={`${v.Shifts} du jour`} />
         <StatCard icon={AlarmClock} label="Retards" value={stats.late} tone={stats.late ? 'amber' : 'green'} sub={`Au-delà de ${GRACE_MIN} min`} />
-        <StatCard icon={UserX} label="Non pointés" value={stats.missing} tone={stats.missing ? 'red' : 'green'} sub="Garde commencée" />
+        <StatCard icon={UserX} label="Non pointés" value={stats.missing} tone={stats.missing ? 'red' : 'green'} sub={`${v.Shift} commencé${v.sx()}`} />
         <StatCard icon={ShieldAlert} label="Pointages suspects" value={stats.suspect} tone={stats.suspect ? 'red' : 'green'} sub="Selfie, GPS, téléphone partagé" />
       </div>
 
@@ -270,16 +272,16 @@ export default function Attendance() {
               ))}
             </div>
             <Select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)} className="sm:w-52">
-              <option value="">Tous les sites</option>
+              <option value="">Tous les {v.sites}</option>
               {data.sites.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </Select>
           </div>
         </div>
 
         {rows.length === 0 ? (
-          <EmptyState icon={Clock} title="Aucune garde prévue ce jour" text="Les pointages sont comparés au planning. Préparez le planning pour suivre les présences." />
+          <EmptyState icon={Clock} title={`${v.AucunShift} prévu${v.sx()} ce jour`} text="Les pointages sont comparés au planning. Préparez le planning pour suivre les présences." />
         ) : visible.length === 0 ? (
-          <EmptyState icon={UserCheck} title="Rien à signaler" text="Aucune garde ne correspond à ce filtre." />
+          <EmptyState icon={UserCheck} title="Rien à signaler" text={`${v.AucunShift} ne correspond à ce filtre.`} />
         ) : (
           <ul className="divide-y divide-ink-100">
             {visible.map((r) => (
@@ -299,7 +301,7 @@ export default function Attendance() {
         <Card className="mt-6">
           <div className="border-b border-ink-100 px-5 py-4">
             <h2 className="font-semibold">Pointages hors planning</h2>
-            <p className="text-sm text-ink-500">Agents qui ont pointé sans garde prévue ce jour.</p>
+            <p className="text-sm text-ink-500">{v.Workers} qui ont pointé sans {v.shift} prévu{v.sx()} ce jour.</p>
           </div>
           <ul className="divide-y divide-ink-100">
             {unplanned.map((p) => {
@@ -340,6 +342,7 @@ export default function Attendance() {
 }
 
 function PunchBadge({ punch, manual }: { punch: Punch; manual: boolean }) {
+  const v = useVocab()
   const alerts = suspectFlags(punch).filter((f) => f !== 'hors_zone' && f !== 'sans_gps')
   return (
     <span className="inline-flex items-center gap-1.5">
@@ -354,9 +357,9 @@ function PunchBadge({ punch, manual }: { punch: Punch; manual: boolean }) {
       ) : punch.distance_m == null ? (
         <span title="Sans position GPS"><Crosshair className="size-3.5 text-ink-300" /></span>
       ) : punch.gps_ok ? (
-        <span title={`${punch.distance_m} m du site`}><Crosshair className="size-3.5 text-emerald-500" /></span>
+        <span title={`${punch.distance_m} m ${v.duSite}`}><Crosshair className="size-3.5 text-emerald-500" /></span>
       ) : (
-        <span title={`Hors zone : ${punch.distance_m} m du site`} className="inline-flex items-center gap-0.5 text-[11px] font-medium text-amber-700">
+        <span title={`Hors zone : ${punch.distance_m} m ${v.duSite}`} className="inline-flex items-center gap-0.5 text-[11px] font-medium text-amber-700">
           <MapPinOff className="size-3.5" /> {punch.distance_m} m
         </span>
       )}
@@ -450,8 +453,9 @@ function PunchDetailModal({
   isManual: (p: Punch) => boolean
   onClose: () => void
 }) {
+  const v = useVocab()
   return (
-    <Modal open onClose={onClose} title={employee?.full_name ?? 'Agent'} description="Pointages de la période affichée">
+    <Modal open onClose={onClose} title={employee?.full_name ?? v.Worker} description="Pointages de la période affichée">
       {punches.length === 0 ? (
         <p className="text-sm text-ink-500">Aucun pointage.</p>
       ) : (
@@ -511,6 +515,7 @@ function ManualPunchModal({
   onClose: () => void
   onDone: () => void
 }) {
+  const v = useVocab()
   const toast = useToast()
   const [employeeId, setEmployeeId] = useState(initial.employeeId ?? '')
   const [siteId, setSiteId] = useState(initial.siteId ?? '')
@@ -529,7 +534,7 @@ function ManualPunchModal({
     e.preventDefault()
     setError(null)
     const site = sites.find((s) => s.id === siteId)
-    if (!employeeId || !site) return setError('Choisissez l’agent et le site.')
+    if (!employeeId || !site) return setError(`Choisissez l’${v.worker} et ${v.leSite}.`)
     setLoading(true)
     const { error } = await supabase.rpc('punch', {
       p_qr_token: site.qr_token,
@@ -552,7 +557,7 @@ function ManualPunchModal({
       open
       onClose={onClose}
       title="Saisie manuelle"
-      description="Pour un agent sans smartphone ou un oubli. Le pointage sera marqué « saisi par un responsable »."
+      description={`Pour un ${v.worker} sans smartphone ou un oubli. Le pointage sera marqué « saisi par un responsable ».`}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Annuler</Button>
@@ -574,13 +579,13 @@ function ManualPunchModal({
             </button>
           ))}
         </div>
-        <Field label="Agent">
+        <Field label={v.Worker}>
           <Select value={employeeId} onChange={(e) => pickEmployee(e.target.value)} required>
             <option value="">Choisir…</option>
             {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
           </Select>
         </Field>
-        <Field label="Site">
+        <Field label={v.Site}>
           <Select value={siteId} onChange={(e) => setSiteId(e.target.value)} required>
             <option value="">Choisir…</option>
             {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
