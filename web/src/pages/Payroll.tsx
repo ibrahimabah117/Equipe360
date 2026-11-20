@@ -1,8 +1,11 @@
+import { loadMonthData, loadOvertimeApprovals, loadPayrollSettings } from '../lib/payrollData'
+import { useVocab } from '../lib/sector'
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import writeExcelFile from 'write-excel-file/browser'
 import {
   Calculator,
+  Clock,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -17,18 +20,18 @@ import {
   Users,
   Wallet,
 } from 'lucide-react'
-import { errorMessage, fetchAll, supabase, type Employee, type Punch, type ScheduleEntry, type ShiftType } from '../lib/supabase'
+import { errorMessage, supabase, type Employee } from '../lib/supabase'
 import { useCompany } from '../lib/company'
 import { formatDate, formatGNF } from '../lib/format'
-import { conakryInstant, today } from '../lib/dates'
+import { today } from '../lib/dates'
 import {
   baseLabel,
   computePayslip,
   DEFAULT_SETTINGS,
-  monthEnd,
   PAY_MODE_LABELS,
   periodLabel,
   totals,
+  type OvertimeWeek,
   type PayrollRun,
   type PayrollSettings,
   type Payslip,
@@ -62,13 +65,10 @@ function shiftMonth(period: string, n: number) {
   return d.toISOString().slice(0, 10)
 }
 
-export async function loadPayrollSettings(companyId: string): Promise<Omit<PayrollSettings, 'company_id'>> {
-  const { data } = await supabase.from('payroll_settings').select('*').eq('company_id', companyId).maybeSingle()
-  return { ...DEFAULT_SETTINGS, ...(data ?? {}) }
-}
 
 export default function Payroll() {
   const { company, isOwnerLevel } = useCompany()
+  const vo = useVocab()
   const toast = useToast()
   const [period, setPeriod] = useState(thisMonth())
   const [run, setRun] = useState<PayrollRun | null | undefined>(undefined)
@@ -101,6 +101,11 @@ export default function Payroll() {
   }, [load])
 
   const empById = useMemo(() => Object.fromEntries(employees.map((e) => [e.id, e])), [employees])
+  /** Semaines d'heures sup en attente de validation (d'après le dernier calcul) */
+  const pendingOt = useMemo(
+    () => slips.reduce((n, s) => n + ((s.details?.overtime_weeks as OvertimeWeek[] | undefined) ?? []).filter((w) => w.status === 'pending').length, 0),
+    [slips],
+  )
 
   /** Calcule (ou recalcule) tous les bulletins du mois. Les primes et retenues saisies à la main sont conservées. */
   async function compute() {
@@ -119,26 +124,10 @@ export default function Payroll() {
         const { error } = await supabase.from('payroll_runs').update({ settings }).eq('id', current.id)
         if (error) throw error
       }
-      const end = monthEnd(period)
-      const [en, sh, pu] = await Promise.all([
-        // Par pages : au-delà de 1 000 lignes, le serveur coupe la réponse
-        fetchAll<ScheduleEntry>(() => supabase.from('schedule_entries').select('*').eq('company_id', company.id).gte('work_date', period).lte('work_date', end).order('id')),
-        supabase.from('shift_types').select('*').eq('company_id', company.id),
-        fetchAll<Punch>(() =>
-          supabase
-            .from('punches')
-            .select('*')
-            .eq('company_id', company.id)
-            .gte('punched_at', new Date(conakryInstant(period, '00:00') - 4 * 3600e3).toISOString())
-            .lte('punched_at', new Date(conakryInstant(end, '23:59') + 24 * 3600e3).toISOString())
-            .order('id'),
-        ),
+      const [{ entries, shifts, punches }, approvals] = await Promise.all([
+        loadMonthData(company.id, period),
+        settings.overtime_requires_approval ? loadOvertimeApprovals(company.id, period) : null,
       ])
-      if (pu.error) throw pu.error
-      if (en.error) throw en.error
-      const entries = (en.data ?? []) as ScheduleEntry[]
-      const shifts = Object.fromEntries(((sh.data ?? []) as ShiftType[]).map((s) => [s.id, s]))
-      const punches = (pu.data ?? []) as Punch[]
       const withEntries = new Set(entries.map((e) => e.employee_id))
       const people = employees.filter((e) => e.active || withEntries.has(e.id))
       const existing = Object.fromEntries(slips.map((s) => [s.employee_id, s]))
@@ -152,6 +141,7 @@ export default function Payroll() {
           entries: entries.filter((e) => e.employee_id === emp.id),
           shifts,
           punches: punches.filter((p) => p.employee_id === emp.id),
+          approvals: approvals?.byEmployee[emp.id],
           manual: prev ? { bonus: prev.bonus, bonus_note: prev.bonus_note, advance: prev.advance, other_deduction: prev.other_deduction, other_note: prev.other_note } : undefined,
         })
         return { ...r, run_id: current!.id, company_id: company.id }
@@ -201,7 +191,7 @@ export default function Payroll() {
   )
 
   async function exportExcel() {
-    const header = ['Employé', 'Poste', 'Mode de paie', 'Tarif', 'Heures', 'Salaire de base', 'Gardes faites', 'Gardes prévues', 'Abs. injustifiées', 'Retenue absences', 'Retards (min)', 'Retenue retards', 'Heures sup. (h)', 'Heures sup. (GNF)', 'Prime de nuit', 'Prime ancienneté', 'Prime except.', 'Avance', 'Autres retenues', 'Brut', 'Net à payer']
+    const header = [vo.Worker, 'Poste', 'Mode de paie', 'Tarif', 'Heures', 'Salaire de base', `${vo.Shifts} fait${vo.sx(2)}`, `${vo.Shifts} prévu${vo.sx(2)}`, 'Abs. injustifiées', 'Retenue absences', 'Retards (min)', 'Retenue retards', 'Heures sup. (h)', 'Heures sup. (GNF)', 'Prime de nuit', 'Prime ancienneté', 'Prime except.', 'Avance', 'Autres retenues', 'Brut', 'Net à payer']
     const n = (v: number) => ({ value: Number(v), format: '#,##0' })
     await writeExcelFile(
       [
@@ -267,9 +257,16 @@ export default function Payroll() {
         <IconButton icon={ChevronRight} label="Mois suivant" onClick={() => setPeriod(shiftMonth(period, 1))} className="ring-1 ring-ink-200" />
         <span className="ml-1 text-lg font-semibold capitalize">{periodLabel(period)}</span>
         {run && (validated ? <Badge tone="green"><Lock className="size-3" /> Validée le {formatDate(run.validated_at)}</Badge> : <Badge tone="amber" dot>Brouillon</Badge>)}
-        <Link to={`/c/${company.id}/parametres#paie`} className="ml-auto inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700">
+        <span className="ml-auto flex flex-wrap items-center gap-3">
+        {settings.overtime_enabled && settings.overtime_requires_approval && (
+          <Link to={`/c/${company.id}/paie/heures-sup`} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1 text-sm font-medium text-amber-800 hover:bg-amber-100">
+            <Clock className="size-4" /> Heures sup{pendingOt ? ` à valider (${pendingOt})` : ''}
+          </Link>
+        )}
+        <Link to={`/c/${company.id}/parametres#paie`} className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700">
           <Settings2 className="size-4" /> Règles de paie
         </Link>
+        </span>
       </div>
 
       {run === undefined ? (
@@ -300,7 +297,7 @@ export default function Payroll() {
           {!validated && period >= thisMonth() && (
             <div className="mb-4">
               <Callout tone="warning" title="Mois en cours">
-                Seules les gardes déjà commencées sont comptées. Recalculez la paie en fin de mois avant de la valider.
+                Seul{vo.sx(2)} les {vo.shifts} déjà commencé{vo.sx(2)} sont compté{vo.sx(2)}. Recalculez la paie en fin de mois avant de la valider.
               </Callout>
             </div>
           )}
@@ -321,7 +318,7 @@ export default function Payroll() {
                 <tr>
                   <Th>Employé</Th>
                   <Th className="hidden text-right md:table-cell">Base</Th>
-                  <Th className="hidden text-center lg:table-cell">Gardes</Th>
+                  <Th className="hidden text-center lg:table-cell">{vo.Shifts}</Th>
                   <Th className="hidden text-right lg:table-cell">Primes</Th>
                   <Th className="hidden text-right md:table-cell">Retenues</Th>
                   <Th className="text-right">Net à payer</Th>
@@ -399,7 +396,7 @@ export default function Payroll() {
         loading={busy}
         title={`Valider la paie de ${periodLabel(period)} ?`}
         confirmLabel="Valider et verrouiller"
-        text={`Les ${slips.length} bulletins seront verrouillés (net total : ${formatGNF(sum.net)}) et les agents pourront consulter leur fiche de paie dans l’appli.`}
+        text={`Les ${slips.length} bulletins seront verrouillés (net total : ${formatGNF(sum.net)}) et les ${vo.workers} pourront consulter leur fiche de paie dans l’appli.`}
         onConfirm={() => setStatus('validated')}
       />
       <ConfirmDialog
@@ -409,7 +406,7 @@ export default function Payroll() {
         danger
         title="Rouvrir cette paie ?"
         confirmLabel="Rouvrir"
-        text="Les bulletins redeviennent modifiables et ne sont plus visibles par les agents jusqu’à la prochaine validation."
+        text={`Les bulletins redeviennent modifiables et ne sont plus visibles par les ${vo.workers} jusqu’à la prochaine validation.`}
         onConfirm={() => setStatus('draft')}
       />
     </>
@@ -446,6 +443,7 @@ function PayslipModal({
   onClose: () => void
   onSaved: () => void
 }) {
+  const vo = useVocab()
   const toast = useToast()
   const [bonus, setBonus] = useState(String(slip.bonus || ''))
   const [bonusNote, setBonusNote] = useState(slip.bonus_note ?? '')
@@ -487,7 +485,7 @@ function PayslipModal({
       onClose={onClose}
       size="lg"
       title={employee?.full_name ?? 'Bulletin'}
-      description={`${employee?.job_title ?? ''} · ${slip.shifts_worked} garde${slip.shifts_worked > 1 ? 's' : ''} effectuée${slip.shifts_worked > 1 ? 's' : ''} sur ${slip.shifts_planned} prévue${slip.shifts_planned > 1 ? 's' : ''}`}
+      description={`${employee?.job_title ?? ''} · ${vo.nShifts(slip.shifts_worked)} effectué${vo.sx(slip.shifts_worked)} sur ${slip.shifts_planned} prévu${vo.sx(slip.shifts_planned)}`}
       footer={
         locked ? (
           <Button onClick={onClose}>Fermer</Button>
@@ -504,6 +502,13 @@ function PayslipModal({
           <p className="mb-2 text-xs font-medium tracking-wide text-ink-400 uppercase">Calcul automatique</p>
           <div className="divide-y divide-ink-100 rounded-xl px-4 ring-1 ring-ink-100">
             <Line label={baseLabel(slip).label} sub={baseLabel(slip).sub} value={slip.base_salary} />
+            {((slip.details?.overtime_weeks as OvertimeWeek[] | undefined) ?? []).some((w) => w.status === 'pending') && (
+              <Line
+                label="Heures sup en attente"
+                sub={`${new Intl.NumberFormat('fr-FR').format(((slip.details.overtime_weeks as OvertimeWeek[]) ?? []).filter((w) => w.status === 'pending').reduce((h, w) => h + w.hours, 0))} h à valider (menu Heures sup) avant d’être payées`}
+                value={0}
+              />
+            )}
             {Number(slip.overtime_pay) > 0 && (
               <Line label="Heures supplémentaires" sub={`${new Intl.NumberFormat('fr-FR').format(Number(slip.overtime_hours))} h au-delà de ${settings.overtime_weekly_threshold} h / semaine`} value={slip.overtime_pay} tone="plus" />
             )}
@@ -511,7 +516,7 @@ function PayslipModal({
             <Line label="Prime d’ancienneté" sub={`${slip.seniority_years} an${slip.seniority_years > 1 ? 's' : ''}${employee?.hire_date ? '' : ' (date d’embauche non renseignée)'}`} value={slip.seniority_bonus} tone="plus" />
             <Line
               label="Absences injustifiées"
-              sub={slip.pay_mode === 'monthly' ? `${slip.unjustified_absences} × 1/${settings.absence_divisor} du salaire` : `${slip.unjustified_absences} garde${slip.unjustified_absences > 1 ? 's' : ''} non payée${slip.unjustified_absences > 1 ? 's' : ''}`}
+              sub={slip.pay_mode === 'monthly' ? `${slip.unjustified_absences} × 1/${settings.absence_divisor} du salaire` : `${vo.nShifts(slip.unjustified_absences)} non payé${vo.sx(slip.unjustified_absences)}`}
               value={slip.absence_deduction}
               tone="minus"
             />
@@ -519,7 +524,7 @@ function PayslipModal({
           </div>
           {slip.shifts_unpunched > 0 && (
             <p className="mt-2 text-xs text-ink-500">
-              {slip.shifts_unpunched} garde{slip.shifts_unpunched > 1 ? 's' : ''} sans pointage d’arrivée
+              {vo.nShifts(slip.shifts_unpunched)} sans pointage d’arrivée
               {settings.unpunched_as_absence ? ' (comptée(s) comme absence injustifiée)' : ' (payée(s) normalement)'}.
             </p>
           )}

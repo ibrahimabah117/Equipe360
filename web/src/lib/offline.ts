@@ -1,3 +1,4 @@
+import type { PunchKind } from './punchKinds'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { supabase } from './supabase'
 import { photoPath, uploadPunchPhoto } from './photos'
@@ -36,7 +37,7 @@ export function isNetworkError(error: { message?: string; code?: string } | null
 export interface QueuedPunch {
   client_id: string
   qr_token: string
-  kind: 'in' | 'out'
+  kind: PunchKind
   punched_at: string
   latitude: number | null
   longitude: number | null
@@ -192,7 +193,7 @@ export function useQueueSync(enabled: boolean) {
 /* ------------------------------------------------------------------ Dernier pointage (pour proposer arrivée ou départ) */
 
 interface LastPunch {
-  kind: 'in' | 'out'
+  kind: PunchKind
   at: string
   site_name: string | null
 }

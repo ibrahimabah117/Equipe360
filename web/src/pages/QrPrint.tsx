@@ -1,3 +1,4 @@
+import { useVocab } from '../lib/sector'
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Printer } from 'lucide-react'
@@ -9,6 +10,7 @@ import { LogoMark } from '../ui/Logo'
 
 export default function QrPrint() {
   const { company } = useCompany()
+  const v = useVocab()
   const [params] = useSearchParams()
   const only = params.get('site')
   const [items, setItems] = useState<{ site: Site; src: string }[] | null>(null)
@@ -30,7 +32,7 @@ export default function QrPrint() {
       <style>{`@page { size: A4; margin: 12mm; }`}</style>
       <div className="no-print mb-6 flex flex-wrap items-center justify-between gap-3">
         <Link to={`/c/${company.id}/sites`}>
-          <Button variant="ghost" icon={ArrowLeft}>Retour aux sites</Button>
+          <Button variant="ghost" icon={ArrowLeft}>Retour aux {v.sites}</Button>
         </Link>
         <div className="flex items-center gap-3">
           <span className="text-sm text-ink-500">{items.length} QR code{items.length > 1 ? 's' : ''} · 2 par page A4</span>

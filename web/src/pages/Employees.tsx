@@ -1,3 +1,4 @@
+import { useVocab } from '../lib/sector'
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import writeExcelFile from 'write-excel-file/browser'
@@ -33,6 +34,7 @@ type StatusFilter = 'active' | 'inactive' | 'all'
 
 export default function Employees() {
   const { company } = useCompany()
+  const v = useVocab()
   const toast = useToast()
   const [employees, setEmployees] = useState<Employee[] | null>(null)
   const [sites, setSites] = useState<Site[]>([])
@@ -103,7 +105,7 @@ export default function Employees() {
     const rows = (employees ?? []).filter((e) => e.active)
     await writeExcelFile(
       [
-        ['Nom complet', 'Téléphone', 'Poste', 'Site', 'Mode de paie', 'Montant (GNF)'].map((v) => ({ value: v, fontWeight: 'bold' as const })),
+        ['Nom complet', 'Téléphone', 'Poste', v.Site, 'Mode de paie', 'Montant (GNF)'].map((v) => ({ value: v, fontWeight: 'bold' as const })),
         ...rows.map((e) => [
           { value: e.full_name },
           { value: e.phone ? formatPhone(e.phone) : '' },
@@ -120,8 +122,8 @@ export default function Employees() {
   return (
     <>
       <PageHeader
-        title="Employés"
-        description="Fiches du personnel, site d’affectation et salaire de base."
+        title={v.Workers}
+        description={`Fiches du personnel, ${v.site} d’affectation et salaire de base.`}
         actions={
           <>
             <Button variant="secondary" icon={Download} onClick={exportExcel} disabled={!counts.active}>
@@ -150,8 +152,8 @@ export default function Employees() {
             className="lg:max-w-xs"
           />
           <Select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)} className="lg:max-w-52">
-            <option value="">Tous les sites</option>
-            <option value="none">Sans site</option>
+            <option value="">Tous les {v.sites}</option>
+            <option value="none">Sans {v.site}</option>
             {sites.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
@@ -183,12 +185,12 @@ export default function Employees() {
         ) : employees.length === 0 ? (
           <EmptyState
             icon={Users}
-            title="Aucun employé"
-            text="Importez votre liste depuis Excel en une fois, ou ajoutez les employés un par un."
+            title={`Aucun ${v.worker}`}
+            text={`Importez votre liste depuis Excel en une fois, ou ajoutez les ${v.workers} un par un.`}
             action={
               <div className="flex flex-wrap justify-center gap-2">
                 <Button variant="secondary" icon={Upload} onClick={() => setImporting(true)}>Importer Excel</Button>
-                <Button icon={UserPlus} onClick={() => setEditing('new')}>Ajouter un employé</Button>
+                <Button icon={UserPlus} onClick={() => setEditing('new')}>Ajouter un {v.worker}</Button>
               </div>
             }
           />
@@ -201,9 +203,9 @@ export default function Employees() {
               <Table>
                 <thead>
                   <tr>
-                    <Th>Employé</Th>
+                    <Th>{v.Worker}</Th>
                     <Th>Téléphone</Th>
-                    <Th>Site</Th>
+                    <Th>{v.Site}</Th>
                     <Th className="text-right">Rémunération</Th>
                     <Th>Accès</Th>
                     <Th />
@@ -387,11 +389,12 @@ function EmployeeModal({
   onClose: () => void
   onSaved: () => void
 }) {
+  const vc = useVocab()
   const toast = useToast()
   const [form, setForm] = useState({
     full_name: employee?.full_name ?? '',
     phone: employee?.phone ? formatPhone(employee.phone).replace('+224 ', '') : '',
-    job_title: employee?.job_title ?? 'Agent de sécurité',
+    job_title: employee?.job_title ?? vc.jobTitles[0],
     default_site_id: employee?.default_site_id ?? '',
     base_salary: String(employee?.base_salary ?? ''),
     pay_mode: (employee?.pay_mode ?? 'monthly') as PayMode,
@@ -426,7 +429,7 @@ function EmployeeModal({
       : await supabase.from('employees').insert(payload)
     setLoading(false)
     if (error) {
-      return setError(error.code === '23505' ? 'Un employé utilise déjà ce numéro de téléphone.' : errorMessage(error))
+      return setError(error.code === '23505' ? `Un ${vc.worker} utilise déjà ce numéro de téléphone.` : errorMessage(error))
     }
     toast.success(employee ? 'Fiche mise à jour' : `${payload.full_name} est ajouté`)
     onSaved()
@@ -437,7 +440,7 @@ function EmployeeModal({
     <Modal
       open
       onClose={onClose}
-      title={employee ? 'Modifier l’employé' : 'Nouvel employé'}
+      title={employee ? `Modifier l’${vc.worker}` : `Nouvel ${vc.worker}`}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Annuler</Button>
@@ -455,12 +458,12 @@ function EmployeeModal({
         <Field label="Poste">
           <Input value={form.job_title} onChange={set('job_title')} list="job-titles" />
           <datalist id="job-titles">
-            {['Agent de sécurité', 'Chef de poste', 'Superviseur', 'Maître-chien', 'Chauffeur', 'Agent d’entretien'].map((j) => (
+            {vc.jobTitles.map((j) => (
               <option key={j} value={j} />
             ))}
           </datalist>
         </Field>
-        <Field label="Site d’affectation">
+        <Field label={`${vc.Site} d’affectation`}>
           <Select value={form.default_site_id} onChange={set('default_site_id')}>
             <option value="">Non affecté</option>
             {sites.filter((s) => s.active || s.id === form.default_site_id).map((s) => (
@@ -474,7 +477,7 @@ function EmployeeModal({
             {(
               [
                 ['monthly', 'Au mois', 'Salaire fixe'],
-                ['per_shift', 'À la garde', 'Tarif × gardes faites'],
+                ['per_shift', vc.AuShift, `Tarif × ${vc.shifts} fait${vc.sx(2)}`],
                 ['hourly', 'À l’heure', 'Tarif × heures pointées'],
               ] as const
             ).map(([v, t, d]) => (
@@ -499,8 +502,8 @@ function EmployeeModal({
           </Field>
         ) : (
           <Field
-            label={form.pay_mode === 'per_shift' ? 'Tarif par garde (GNF)' : 'Tarif horaire (GNF)'}
-            hint={form.pay_mode === 'per_shift' ? 'Payé pour chaque garde effectuée.' : 'Payé à la minute près, selon les pointages.'}
+            label={form.pay_mode === 'per_shift' ? `Tarif par ${vc.shift} (GNF)` : 'Tarif horaire (GNF)'}
+            hint={form.pay_mode === 'per_shift' ? `Payé pour chaque ${vc.shift} effectué${vc.sx()}.` : 'Payé à la minute près, selon les pointages.'}
           >
             <Input type="number" min={0} step={form.pay_mode === 'per_shift' ? 1000 : 500} inputMode="numeric" value={form.pay_rate} onChange={set('pay_rate')} placeholder={form.pay_mode === 'per_shift' ? '60 000' : '5 000'} required />
           </Field>
@@ -510,7 +513,7 @@ function EmployeeModal({
         </Field>
         {employee && (
           <div className="sm:col-span-2">
-            <Toggle checked={form.active} onChange={(v) => setForm({ ...form, active: v })} label="Employé actif" />
+            <Toggle checked={form.active} onChange={(v) => setForm({ ...form, active: v })} label={`${vc.Worker} actif`} />
           </div>
         )}
         {error && <div className="sm:col-span-2"><Callout tone="danger">{error}</Callout></div>}

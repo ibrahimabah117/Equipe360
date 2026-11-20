@@ -1,3 +1,4 @@
+import { useVocab } from '../lib/sector'
 import { useEffect, useMemo, useState } from 'react'
 import writeExcelFile from 'write-excel-file/browser'
 import { AlarmClock, ChevronLeft, ChevronRight, ClipboardList, Download, Printer, ShieldAlert, UserCheck, UserX } from 'lucide-react'
@@ -52,6 +53,7 @@ function incidentText(i: Incident) {
 /** Bilan mensuel d'assiduité : par agent et par site, à exporter ou imprimer */
 export default function Reports() {
   const { company } = useCompany()
+  const v = useVocab()
   const [period, setPeriod] = useState(() => today().slice(0, 8) + '01')
   const [siteFilter, setSiteFilter] = useState('')
   const [sort, setSort] = useState<'worst' | 'name'>('worst')
@@ -132,17 +134,17 @@ export default function Reports() {
       justified(c),
       c.suspect,
     ]
-    const head = ['Gardes prévues', 'Gardes attendues', 'Gardes pointées', 'Présence (%)', 'Retards', 'Minutes de retard', 'Départs anticipés', 'Non pointées', 'Absences injustifiées', 'Absences justifiées', 'Pointages suspects']
+    const head = [`${v.Shifts} prévu${v.sx(2)}`, `${v.Shifts} attendu${v.sx(2)}`, `${v.Shifts} pointé${v.sx(2)}`, 'Présence (%)', 'Retards', 'Minutes de retard', 'Départs anticipés', 'Non pointées', 'Absences injustifiées', 'Absences justifiées', 'Pointages suspects']
     const cols = (first: number) => [{ width: first }, ...head.map(() => ({ width: 13 }))]
     const title = `${company.name} — assiduité ${periodLabel(period)}${siteName ? ' — ' + siteName : ''}`
     await writeExcelFile([
       {
-        sheet: 'Par agent',
+        sheet: `Par ${v.worker}`,
         columns: cols(26),
-        data: [[bold(title)], [], ['Agent', ...head].map(bold), ...report.employees.map((l) => row([l.employee.full_name, ...counts(l)])), row(['Total', ...counts(report.total)])],
+        data: [[bold(title)], [], [v.Worker, ...head].map(bold), ...report.employees.map((l) => row([l.employee.full_name, ...counts(l)])), row(['Total', ...counts(report.total)])],
       },
       {
-        sheet: 'Par site',
+        sheet: `Par ${v.site}`,
         columns: cols(26),
         data: [[bold(title)], [], ['Site', ...head].map(bold), ...report.sites.map((l) => row([l.site.name, ...counts(l)])), row(['Total', ...counts(report.total)])],
       },
@@ -150,7 +152,7 @@ export default function Reports() {
         sheet: 'Incidents',
         columns: [{ width: 26 }, { width: 12 }, { width: 22 }, { width: 10 }, { width: 50 }],
         data: [
-          ['Agent', 'Date', 'Site', 'Garde', 'Incident'].map(bold),
+          [v.Worker, 'Date', v.Site, v.Shift, 'Incident'].map(bold),
           ...report.employees.flatMap((l) => l.incidents.map((i) => row([l.employee.full_name, i.date.split('-').reverse().join('/'), i.site, i.shift, incidentText(i)]))),
         ],
       },
@@ -164,7 +166,7 @@ export default function Reports() {
       <div className="no-print">
         <PageHeader
           title="Rapport d’assiduité"
-          description="Bilan du mois par agent et par site : présence, retards, absences et pointages suspects."
+          description={`Bilan du mois par ${v.worker} et par ${v.site} : présence, retards, absences et pointages suspects.`}
           actions={
             <>
               <Button variant="secondary" icon={Download} onClick={exportExcel} disabled={!report?.employees.length}>Exporter Excel</Button>
@@ -182,7 +184,7 @@ export default function Reports() {
           </div>
           <div className="flex gap-2 sm:ml-auto">
             <Select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)} className="sm:w-52">
-              <option value="">Tous les sites</option>
+              <option value="">Tous les {v.sites}</option>
               {data?.sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </Select>
             <Select value={sort} onChange={(e) => setSort(e.target.value as 'worst' | 'name')} className="sm:w-56">
@@ -199,7 +201,7 @@ export default function Reports() {
         <p className="text-sm capitalize">
           {periodLabel(period)}
           {isCurrent && ` (jusqu’au ${dayLong(today())})`}
-          {siteName && ` · Site : ${siteName}`}
+          {siteName && ` · ${v.Site} : ${siteName}`}
         </p>
       </div>
 
@@ -209,30 +211,30 @@ export default function Reports() {
         <PageLoader />
       ) : report.employees.length === 0 ? (
         <Card>
-          <EmptyState icon={ClipboardList} title="Aucune garde ce mois-ci" text="Le rapport se remplit à partir du planning et des pointages." />
+          <EmptyState icon={ClipboardList} title={`${v.AucunShift} ce mois-ci`} text="Le rapport se remplit à partir du planning et des pointages." />
         </Card>
       ) : (
         <div className="space-y-6">
-          {isCurrent && <p className="no-print text-sm text-ink-500">Mois en cours : seules les gardes déjà commencées sont comptées.</p>}
+          {isCurrent && <p className="no-print text-sm text-ink-500">Mois en cours : seul{v.sx(2)} les {v.shifts} déjà commencé{v.sx(2)} sont compté{v.sx(2)}.</p>}
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5 lg:gap-4 print:grid-cols-5">
-            <StatCard icon={UserCheck} label="Présence" value={pct(presenceRate(report.total))} tone={(presenceRate(report.total) ?? 1) >= 0.95 ? 'green' : 'amber'} sub={`${report.total.worked} / ${expected(report.total)} gardes attendues`} />
+            <StatCard icon={UserCheck} label="Présence" value={pct(presenceRate(report.total))} tone={(presenceRate(report.total) ?? 1) >= 0.95 ? 'green' : 'amber'} sub={`${report.total.worked} / ${expected(report.total)} ${v.shifts} attendu${v.sx(2)}`} />
             <StatCard icon={AlarmClock} label="Retards" value={report.total.late} tone={report.total.late ? 'amber' : 'green'} sub={report.total.late ? `${minutesLabel(report.total.lateMinutes)} au total` : `Au-delà de ${REPORT_GRACE_MIN} min`} />
-            <StatCard icon={UserX} label="Non pointées" value={report.total.unpunched} tone={report.total.unpunched ? 'red' : 'green'} sub="Gardes sans arrivée" />
+            <StatCard icon={UserX} label="Non pointées" value={report.total.unpunched} tone={report.total.unpunched ? 'red' : 'green'} sub={`${v.Shifts} sans arrivée`} />
             <StatCard icon={UserX} label="Absences injustifiées" value={report.total.absences.injustifiee} tone={report.total.absences.injustifiee ? 'red' : 'green'} sub={`${justified(report.total)} justifiée${justified(report.total) > 1 ? 's' : ''}`} />
             <StatCard icon={ShieldAlert} label="Pointages suspects" value={report.total.suspect} tone={report.total.suspect ? 'red' : 'green'} sub="Selfie, GPS, téléphone" />
           </div>
 
           <Card className="overflow-hidden">
             <div className="border-b border-ink-100 px-5 py-4">
-              <h2 className="font-semibold">Par agent</h2>
-              <p className="no-print text-sm text-ink-500">Touchez un agent pour voir le détail jour par jour.</p>
+              <h2 className="font-semibold">Par {v.worker}</h2>
+              <p className="no-print text-sm text-ink-500">Touchez un {v.worker} pour voir le détail jour par jour.</p>
             </div>
             <Table>
               <thead>
                 <tr>
-                  <Th>Agent</Th>
-                  <Th className="text-right">Gardes</Th>
+                  <Th>{v.Worker}</Th>
+                  <Th className="text-right">{v.Shifts}</Th>
                   <Th className="text-right">Présence</Th>
                   <Th className="text-right">Ponctualité</Th>
                   <Th className="text-right">Retards</Th>
@@ -270,13 +272,13 @@ export default function Reports() {
           {!siteFilter && report.sites.length > 1 && (
             <Card className="overflow-hidden">
               <div className="border-b border-ink-100 px-5 py-4">
-                <h2 className="font-semibold">Par site</h2>
+                <h2 className="font-semibold">Par {v.site}</h2>
               </div>
               <Table>
                 <thead>
                   <tr>
-                    <Th>Site</Th>
-                    <Th className="text-right">Gardes</Th>
+                    <Th>{v.Site}</Th>
+                    <Th className="text-right">{v.Shifts}</Th>
                     <Th className="text-right">Présence</Th>
                     <Th className="text-right">Retards</Th>
                     <Th className="text-right">Non pointées</Th>
@@ -302,7 +304,7 @@ export default function Reports() {
           )}
 
           <p className="text-xs text-ink-500">
-            Présence = gardes pointées ÷ gardes attendues (gardes prévues moins les absences justifiées : maladie, congé, permission).
+            Présence = {v.shifts} pointé{v.sx(2)} ÷ {v.shifts} attendu{v.sx(2)} ({v.shifts} prévu{v.sx(2)} moins les absences justifiées : maladie, congé, permission).
             Retard au-delà de {REPORT_GRACE_MIN} min. Heures de Conakry.
           </p>
         </div>
@@ -315,6 +317,7 @@ export default function Reports() {
 }
 
 function IncidentsModal({ line, period, onClose }: { line: EmployeeLine; period: string; onClose: () => void }) {
+  const v = useVocab()
   const tone: Record<Incident['kind'], 'amber' | 'red' | 'neutral'> = {
     retard: 'amber',
     depart_anticipe: 'amber',
@@ -326,7 +329,7 @@ function IncidentsModal({ line, period, onClose }: { line: EmployeeLine; period:
   return (
     <Modal open onClose={onClose} title={line.employee.full_name} description={`Détail ${periodLabel(period)} · présence ${pct(presenceRate(line))}`}>
       {line.incidents.length === 0 ? (
-        <p className="text-sm text-ink-500">Aucun incident : toutes les gardes ont été pointées à l’heure.</p>
+        <p className="text-sm text-ink-500">Aucun incident : {v.TousShifts.charAt(0).toLowerCase() + v.TousShifts.slice(1)} ont été pointé{v.sx(2)} à l’heure.</p>
       ) : (
         <ul className="divide-y divide-ink-100">
           {line.incidents.map((i, k) => (

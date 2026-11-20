@@ -9,6 +9,7 @@ import {
   Clock,
   KeyRound,
   LayoutDashboard,
+  Radio,
   LogOut,
   MapPin,
   Menu,
@@ -25,6 +26,7 @@ import { useAuth } from '../lib/auth'
 import { formatPhone, PHONE_DOMAIN, ROLE_LABELS } from '../lib/format'
 import { Avatar, cx } from '../ui'
 import { Logo } from '../ui/Logo'
+import { vocabFor } from '../lib/sector'
 
 interface NavItem {
   to: string
@@ -81,11 +83,13 @@ function NavGroup({ title, items, onNavigate }: { title?: string; items: NavItem
 export function AppShell({
   companyId,
   companyName,
+  companySector,
   role,
   children,
 }: {
   companyId?: string
   companyName?: string
+  companySector?: string
   role?: string
   children: ReactNode
 }) {
@@ -96,17 +100,19 @@ export function AppShell({
   useEffect(() => setOpen(false), [location.pathname])
 
   const base = companyId ? `/c/${companyId}` : ''
+  const v = vocabFor(companySector)
   const manage = role === 'admin' || role === 'owner' || role === 'manager'
 
   const companyNav: NavItem[] = manage
     ? [
         { to: base, label: 'Tableau de bord', icon: LayoutDashboard, end: true },
+        { to: `${base}/direct`, label: 'En direct', icon: Radio },
         { to: `${base}/planning`, label: 'Planning', icon: CalendarDays },
         { to: `${base}/pointages`, label: 'Pointages', icon: Clock },
         { to: `${base}/rapport`, label: 'Rapport d’assiduité', icon: ClipboardList },
         { to: `${base}/paie`, label: 'Paie', icon: Wallet },
-        { to: `${base}/employes`, label: 'Employés', icon: Users },
-        { to: `${base}/sites`, label: 'Sites & QR codes', icon: MapPin },
+        { to: `${base}/employes`, label: v.Workers, icon: Users },
+        { to: `${base}/sites`, label: `${v.Sites} & QR codes`, icon: MapPin },
         { to: `${base}/acces`, label: 'Comptes d’accès', icon: KeyRound },
       ]
     : [
@@ -119,7 +125,7 @@ export function AppShell({
   const isPhone = email.endsWith('@' + PHONE_DOMAIN)
   const meta = session?.user.user_metadata as { display_name?: string } | undefined
   const who = meta?.display_name || (isPhone ? formatPhone(email.split('@')[0]) : email)
-  const whoSub = isAdmin ? 'Administrateur Équipe360' : role ? ROLE_LABELS[role] : ''
+  const whoSub = isAdmin ? 'Administrateur Équipe360' : role ? (role === 'agent' ? v.Worker : ROLE_LABELS[role]) : ''
   const multiCompany = isAdmin || memberships.length > 1
 
   const sidebar = (

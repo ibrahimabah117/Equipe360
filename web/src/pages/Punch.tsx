@@ -1,3 +1,4 @@
+import { isBreak, KIND_HINT, KIND_LABEL, type PunchKind } from '../lib/punchKinds'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import QrScanner from 'qr-scanner'
@@ -6,10 +7,12 @@ import {
   CameraOff,
   CheckCircle2,
   CloudOff,
+  Coffee,
   Crosshair,
   LogIn,
   LogOut,
   MapPin,
+  Play,
   QrCode,
   RefreshCw,
   ScanLine,
@@ -199,12 +202,13 @@ export function PunchPage() {
   const [forEmployee, setForEmployee] = useState<string>('me')
   const [pos, setPos] = useState<{ lat: number; lng: number; accuracy: number } | null>(null)
   const [gpsError, setGpsError] = useState<string | null>(null)
-  const [serverLast, setServerLast] = useState<{ kind: 'in' | 'out'; at: string } | null>(null)
+  const [serverLast, setServerLast] = useState<{ kind: PunchKind; at: string } | null>(null)
   const [phase, setPhase] = useState<Phase>('ready')
-  const [done, setDone] = useState<{ kind: 'in' | 'out'; at: string; result?: PunchResult } | null>(null)
+  const [done, setDone] = useState<{ kind: PunchKind; at: string; result?: PunchResult } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
   const [photoRequired, setPhotoRequired] = useState(false)
+  const [breaksEnabled, setBreaksEnabled] = useState(false)
   const [photo, setPhoto] = useState<string | null>(null)
 
   useEffect(() => {
@@ -256,16 +260,20 @@ export function PunchPage() {
   useEffect(() => {
     if (!companyId) return
     const key = 'photoRequired.' + companyId
+    const bKey = 'breaksEnabled.' + companyId
     setPhotoRequired(cacheGet<boolean>(key) ?? cacheGet<Company>('company.' + companyId)?.punch_photo_required ?? false)
+    setBreaksEnabled(cacheGet<boolean>(bKey) ?? cacheGet<Company>('company.' + companyId)?.breaks_enabled ?? false)
     supabase
       .from('companies')
-      .select('punch_photo_required')
+      .select('punch_photo_required, breaks_enabled')
       .eq('id', companyId)
       .maybeSingle()
       .then(({ data }) => {
         if (!data) return
         cacheSet(key, !!data.punch_photo_required)
+        cacheSet(bKey, !!data.breaks_enabled)
         setPhotoRequired(!!data.punch_photo_required)
+        setBreaksEnabled(!!data.breaks_enabled)
       })
   }, [companyId])
   const needSelfie = photoRequired && !proxy
@@ -301,11 +309,13 @@ export function PunchPage() {
     return () => navigator.geolocation.clearWatch(id)
   }, [])
 
-  const suggested: 'in' | 'out' = useMemo(() => {
+  const suggested: PunchKind = useMemo(() => {
     const local = getLast(proxy ? targetEmployeeId : null)
-    const candidates = [local, serverLast].filter(Boolean) as { kind: 'in' | 'out'; at: string }[]
+    const candidates = [local, serverLast].filter(Boolean) as { kind: PunchKind; at: string }[]
     const last = candidates.sort((a, b) => b.at.localeCompare(a.at))[0]
-    if (last && last.kind === 'in' && Date.now() - new Date(last.at).getTime() < 16 * 3600 * 1000) return 'out'
+    const recent = last && Date.now() - new Date(last.at).getTime() < 16 * 3600 * 1000
+    if (recent && last.kind === 'break_start') return 'break_end'
+    if (recent && (last.kind === 'in' || last.kind === 'break_end')) return 'out'
     return 'in'
   }, [serverLast, proxy, targetEmployeeId, done]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -314,12 +324,12 @@ export function PunchPage() {
   const inZone = dist != null && s ? dist <= s.radius_m : null
   const proxyName = proxy ? employees.find((e) => e.id === forEmployee)?.full_name ?? null : null
 
-  async function punch(kind: 'in' | 'out') {
+  async function punch(kind: PunchKind) {
     setError(null)
     if (!s && site !== null) return
-    if (proxy && !forEmployee) return setError('Choisissez l’agent à pointer.')
+    if (proxy && !forEmployee) return setError('Choisissez la personne à pointer.')
     if (!proxy && !myEmployeeId && !canManage) return setError('Votre compte n’est lié à aucune fiche employé. Contactez votre responsable.')
-    if (needSelfie && !photo) return setError('Prenez votre selfie avant de pointer.')
+    if (needSelfie && !photo && !isBreak(kind)) return setError('Prenez votre selfie avant de pointer.')
     setPhase('sending')
     // Laisser au GPS quelques secondes s'il n'a pas encore de position
     let p = pos
@@ -401,9 +411,8 @@ export function PunchPage() {
                 {phase === 'sent' ? <CheckCircle2 className="size-11 text-white" /> : <CloudOff className="size-10 text-white" />}
               </span>
               <p className="mt-5 text-sm font-medium tracking-wide text-white/80 uppercase">
-                {done.kind === 'in'
-                  ? `Arrivée ${phase === 'sent' ? 'enregistrée' : 'gardée sur le téléphone'}`
-                  : `Départ ${phase === 'sent' ? 'enregistré' : 'gardé sur le téléphone'}`}
+                {/* Arrivée, Fin de pause : féminin ; Départ, Début de pause : masculin */}
+                {`${KIND_LABEL[done.kind]} ${phase === 'sent' ? 'enregistré' : 'gardé'}${done.kind === 'in' || done.kind === 'break_end' ? 'e' : ''}${phase === 'sent' ? '' : ' sur le téléphone'}`}
               </p>
               <p className="tabular mt-1 text-5xl font-semibold text-white">{timeAt(done.at)}</p>
               {proxyName && <p className="mt-2 text-sm text-white/90">pour {proxyName}</p>}
@@ -474,14 +483,14 @@ export function PunchPage() {
             <label className="mb-1.5 block text-[13px] font-medium text-ink-700">Pointer pour</label>
             <Select value={forEmployee} onChange={(e) => setForEmployee(e.target.value)}>
               {myEmployeeId && <option value="me">Moi-même</option>}
-              {!myEmployeeId && <option value="">Choisir un agent…</option>}
+              {!myEmployeeId && <option value="">Choisir une personne…</option>}
               {employees.filter((e) => e.id !== myEmployeeId).map((e) => (
                 <option key={e.id} value={e.id}>{e.full_name}</option>
               ))}
             </Select>
             {proxy && forEmployee && (
               <p className="mt-2 flex items-center gap-2 text-xs text-ink-500">
-                <Avatar name={proxyName} size="sm" /> Pointage pour un agent sans smartphone — noté « saisi par un responsable ».
+                <Avatar name={proxyName} size="sm" /> Pointage pour une personne sans smartphone — noté « saisi par un responsable ».
               </p>
             )}
           </Card>
@@ -531,6 +540,32 @@ export function PunchPage() {
             )
           })}
         </div>
+
+        {breaksEnabled && (
+          <div className="grid grid-cols-2 gap-3">
+            {(['break_start', 'break_end'] as const).map((k) => {
+              const primary = k === suggested
+              const Icon = k === 'break_start' ? Coffee : Play
+              return (
+                <button
+                  key={k}
+                  disabled={phase === 'sending'}
+                  onClick={() => punch(k)}
+                  className={cx(
+                    'flex h-16 items-center gap-3 rounded-2xl px-4 text-left transition-transform active:scale-[0.98] disabled:opacity-60',
+                    primary ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' : 'bg-white text-ink-800 ring-1 ring-ink-200',
+                  )}
+                >
+                  {phase === 'sending' && primary ? <Spinner className="size-6 text-current" /> : <Icon className="size-6" />}
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">{KIND_LABEL[k]}</span>
+                    <span className={cx('block text-[11px]', primary ? 'text-white/80' : 'text-ink-500')}>{KIND_HINT[k]}</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {!online && (
           <p className="flex items-center justify-center gap-2 text-center text-xs text-ink-500">

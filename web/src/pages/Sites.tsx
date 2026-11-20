@@ -1,3 +1,4 @@
+import { useVocab } from '../lib/sector'
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
@@ -39,6 +40,7 @@ const ZONES = ['Kaloum', 'Dixinn', 'Matam', 'Ratoma', 'Matoto', 'Lambanyi', 'Gbe
 
 export default function Sites() {
   const { company } = useCompany()
+  const v = useVocab()
   const toast = useToast()
   const [sites, setSites] = useState<Site[] | null>(null)
   const [headcount, setHeadcount] = useState<Record<string, number>>({})
@@ -76,14 +78,14 @@ export default function Sites() {
   return (
     <>
       <PageHeader
-        title="Sites & QR codes"
-        description="Les lieux où travaillent vos équipes. Chaque site a son QR code de pointage."
+        title={`${v.Sites} & QR codes`}
+        description={`Les lieux où travaillent vos équipes. Chaque ${v.site} a son QR code de pointage.`}
         actions={
           <>
             <Link to={`/c/${company.id}/sites/qr`}>
               <Button variant="secondary" icon={Printer} disabled={!activeCount}>Imprimer les QR</Button>
             </Link>
-            <Button icon={Plus} onClick={() => setEditing('new')}>Nouveau site</Button>
+            <Button icon={Plus} onClick={() => setEditing('new')}>Nouveau {v.site}</Button>
           </>
         }
       />
@@ -92,13 +94,13 @@ export default function Sites() {
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
           <Input
             leading={<Search className="size-4" />}
-            placeholder="Rechercher un site, une commune…"
+            placeholder={`Rechercher ${v.unSite}, une commune…`}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             className="sm:max-w-xs"
           />
           <div className="sm:ml-auto">
-            <Toggle checked={showInactive} onChange={setShowInactive} label="Afficher les sites fermés" />
+            <Toggle checked={showInactive} onChange={setShowInactive} label={`Afficher les ${v.sites} fermés`} />
           </div>
         </div>
       )}
@@ -109,9 +111,9 @@ export default function Sites() {
         <Card>
           <EmptyState
             icon={MapPin}
-            title="Aucun site"
-            text="Ajoutez les lieux gardés par vos agents : agences, ambassades, entrepôts, résidences…"
-            action={<Button icon={Plus} onClick={() => setEditing('new')}>Ajouter un site</Button>}
+            title={`Aucun ${v.site}`}
+            text={`Ajoutez les lieux où travaillent vos ${v.workers} : ${v.siteExamples}`}
+            action={<Button icon={Plus} onClick={() => setEditing('new')}>Ajouter {v.unSite}</Button>}
           />
         </Card>
       ) : filtered.length === 0 ? (
@@ -138,7 +140,7 @@ export default function Sites() {
                   ) : (
                     <Badge tone="amber" dot>Position GPS manquante</Badge>
                   )}
-                  <Badge tone="neutral"><Users className="size-3" /> {headcount[s.id] ?? 0} agent{(headcount[s.id] ?? 0) > 1 ? 's' : ''}</Badge>
+                  <Badge tone="neutral"><Users className="size-3" /> {v.nWorkers(headcount[s.id] ?? 0)}</Badge>
                 </div>
                 <div className="mt-auto flex items-center gap-1 border-t border-ink-100 px-3 py-2">
                   <Button variant="ghost" size="sm" icon={QrCode} onClick={() => setQrSite(s)} disabled={!s.active}>QR code</Button>
@@ -174,6 +176,7 @@ export default function Sites() {
 }
 
 function SiteModal({ site, companyId, onClose, onSaved }: { site: Site | null; companyId: string; onClose: () => void; onSaved: () => void }) {
+  const vc = useVocab()
   const toast = useToast()
   const [form, setForm] = useState({
     name: site?.name ?? '',
@@ -230,7 +233,7 @@ function SiteModal({ site, companyId, onClose, onSaved }: { site: Site | null; c
     const { error } = site ? await supabase.from('sites').update(payload).eq('id', site.id) : await supabase.from('sites').insert(payload)
     setLoading(false)
     if (error) return setError(errorMessage(error))
-    toast.success(site ? 'Site mis à jour' : `${payload.name} est ajouté`)
+    toast.success(site ? `${vc.Site} mis à jour` : `${payload.name} est ajouté`)
     onSaved()
     onClose()
   }
@@ -239,7 +242,7 @@ function SiteModal({ site, companyId, onClose, onSaved }: { site: Site | null; c
     <Modal
       open
       onClose={onClose}
-      title={site ? 'Modifier le site' : 'Nouveau site'}
+      title={site ? `Modifier ${vc.leSite}` : `Nouveau ${vc.site}`}
       size="lg"
       footer={
         <>
@@ -250,7 +253,7 @@ function SiteModal({ site, companyId, onClose, onSaved }: { site: Site | null; c
     >
       <form id="site-form" onSubmit={save} className="space-y-5">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Nom du site" className="sm:col-span-2">
+          <Field label={`Nom ${vc.duSite}`} className="sm:col-span-2">
             <Input value={form.name} onChange={set('name')} placeholder="Ex. Banque Centrale — Kaloum" required autoFocus />
           </Field>
           <Field label="Commune / zone">
@@ -303,7 +306,7 @@ function SiteModal({ site, companyId, onClose, onSaved }: { site: Site | null; c
           </div>
         </div>
 
-        {site && <Toggle checked={form.active} onChange={(v) => setForm({ ...form, active: v })} label="Site actif" />}
+        {site && <Toggle checked={form.active} onChange={(v) => setForm({ ...form, active: v })} label={`${vc.Site} actif`} />}
         {error && <Callout tone="danger">{error}</Callout>}
       </form>
     </Modal>
@@ -311,6 +314,7 @@ function SiteModal({ site, companyId, onClose, onSaved }: { site: Site | null; c
 }
 
 function QrModal({ site, companyName, onClose, onRegenerated }: { site: Site; companyName: string; onClose: () => void; onRegenerated: () => void }) {
+  const vc = useVocab()
   const toast = useToast()
   const [token, setToken] = useState(site.qr_token)
   const [src, setSrc] = useState<string | null>(null)
@@ -348,7 +352,7 @@ function QrModal({ site, companyName, onClose, onRegenerated }: { site: Site; co
             {src ? <img src={src} alt={`QR code ${site.name}`} className="size-60" /> : <div className="size-60" />}
           </div>
           <p className="mt-3 max-w-xs text-center text-xs text-ink-500">
-            À afficher à l’entrée du site. Les agents le scannent à l’arrivée et au départ.
+            À afficher à l’entrée {vc.duSite}. Les {vc.workers} le scannent à l’arrivée et au départ.
           </p>
           <div className="mt-5 grid w-full grid-cols-2 gap-2">
             <Button variant="secondary" icon={Download} onClick={download}>Télécharger</Button>

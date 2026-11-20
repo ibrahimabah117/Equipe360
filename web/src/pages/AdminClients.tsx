@@ -186,7 +186,7 @@ export default function AdminClients() {
                   <Td className="hidden lg:table-cell">{subscriptionBadge(c)}</Td>
                   <Td>
                     <div className="flex justify-end gap-1">
-                      <IconButton icon={Pencil} label="Modifier l’abonnement" onClick={() => setEditing(c)} />
+                      <IconButton icon={Pencil} label="Modifier l’abonnement et le secteur" onClick={() => setEditing(c)} />
                       <IconButton
                         icon={c.status === 'active' ? Pause : Play}
                         label={c.status === 'active' ? 'Suspendre' : 'Réactiver'}
@@ -376,7 +376,10 @@ function SubscriptionModal({ company, onClose, onSaved }: { company: Company; on
   const [price, setPrice] = useState(String(company.monthly_price ?? 0))
   const [paidUntil, setPaidUntil] = useState(company.paid_until ?? '')
   const [note, setNote] = useState(company.admin_note ?? '')
+  const [sector, setSector] = useState(company.sector)
+  const [addShifts, setAddShifts] = useState(true)
   const [loading, setLoading] = useState(false)
+  const sectorChanged = sector !== company.sector
 
   function addMonth() {
     const base = paidUntil && paidUntil > today() ? new Date(paidUntil + 'T00:00:00') : new Date()
@@ -389,6 +392,15 @@ function SubscriptionModal({ company, onClose, onSaved }: { company: Company; on
   async function save(e: FormEvent) {
     e.preventDefault()
     setLoading(true)
+    let added = 0
+    if (sectorChanged) {
+      const { data, error: se } = await supabase.rpc('admin_set_sector', { p_company_id: company.id, p_sector: sector, p_add_shifts: addShifts })
+      if (se) {
+        setLoading(false)
+        return toast.error(errorMessage(se))
+      }
+      added = Number(data ?? 0)
+    }
     const { error } = await supabase.rpc('admin_update_subscription', {
       p_company_id: company.id,
       p_monthly_price: Number(price || 0),
@@ -397,7 +409,11 @@ function SubscriptionModal({ company, onClose, onSaved }: { company: Company; on
     })
     setLoading(false)
     if (error) return toast.error(errorMessage(error))
-    toast.success('Abonnement mis à jour')
+    toast.success(
+      sectorChanged
+        ? `Secteur : ${sectorLabel(sector)}${added ? ` · ${added} horaire${added > 1 ? 's' : ''} ajouté${added > 1 ? 's' : ''}` : ''}`
+        : 'Abonnement mis à jour',
+    )
     onSaved()
     onClose()
   }
@@ -406,7 +422,7 @@ function SubscriptionModal({ company, onClose, onSaved }: { company: Company; on
     <Modal
       open
       onClose={onClose}
-      title="Abonnement"
+      title="Abonnement et secteur"
       description={company.name}
       footer={
         <>
@@ -416,6 +432,22 @@ function SubscriptionModal({ company, onClose, onSaved }: { company: Company; on
       }
     >
       <form id="sub-form" onSubmit={save} className="space-y-4">
+        <Field label="Secteur d’activité" hint="Change le vocabulaire de l’appli pour ce client (sites, agents, gardes…).">
+          <Select value={sector} onChange={(e) => setSector(e.target.value)}>
+            {!SECTORS.some((s) => s.value === company.sector) && <option value={company.sector}>{company.sector}</option>}
+            {SECTORS.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </Select>
+        </Field>
+        {sectorChanged && (
+          <div className="rounded-xl bg-ink-50 p-3">
+            <Toggle checked={addShifts} onChange={setAddShifts} label="Ajouter les horaires types du nouveau métier" />
+            <p className="mt-1 pl-[52px] text-xs text-ink-500">
+              Rien n’est supprimé : les horaires, le planning et la paie déjà en place sont conservés.
+            </p>
+          </div>
+        )}
         <Field label="Prix mensuel (GNF)">
           <Input type="number" min={0} step={1000} value={price} onChange={(e) => setPrice(e.target.value)} />
         </Field>

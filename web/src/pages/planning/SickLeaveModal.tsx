@@ -1,3 +1,4 @@
+import { useVocab } from '../../lib/sector'
 import { useEffect, useMemo, useState } from 'react'
 import { HeartPulse } from 'lucide-react'
 import { errorMessage, supabase, type AbsenceKind, type ScheduleEntry } from '../../lib/supabase'
@@ -19,6 +20,7 @@ export default function SickLeaveModal({
   onClose: () => void
   onDone: (from: string) => void
 }) {
+  const v = useVocab()
   const toast = useToast()
   const employees = useMemo(
     () => data.employees.filter((e) => e.active).sort((a, b) => a.full_name.localeCompare(b.full_name)),
@@ -72,7 +74,7 @@ export default function SickLeaveModal({
       .in('id', planned.map((e) => e.id))
     setBusy(false)
     if (error) return toast.error(errorMessage(error))
-    toast.success(`${planned.length} garde${planned.length > 1 ? 's' : ''} en « ${ABSENCE_LABELS[kind]} ». Cliquez sur chacune pour choisir un remplaçant.`)
+    toast.success(`${v.nShifts(planned.length)} en « ${ABSENCE_LABELS[kind]} ». Cliquez sur chacune pour choisir un remplaçant.`)
     onDone(from)
   }
 
@@ -81,18 +83,18 @@ export default function SickLeaveModal({
       open
       onClose={onClose}
       title="Déclarer un arrêt"
-      description="Toutes les gardes de l’agent sur la période passent en absence, en une seule fois."
+      description={`${v.TousShifts} de l’${v.worker} sur la période passent en absence, en une seule fois.`}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Annuler</Button>
           <Button icon={HeartPulse} loading={busy} disabled={invalid || !planned.length} onClick={save}>
-            {planned.length ? `Déclarer ${planned.length} garde${planned.length > 1 ? 's' : ''}` : 'Déclarer'}
+            {planned.length ? `Déclarer ${v.nShifts(planned.length)}` : 'Déclarer'}
           </Button>
         </>
       }
     >
       <div className="space-y-4">
-        <Field label="Agent">
+        <Field label={v.Worker}>
           <Select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}>
             {employees.map((e) => (
               <option key={e.id} value={e.id}>{e.full_name}</option>
@@ -124,7 +126,7 @@ export default function SickLeaveModal({
           planned.length ? (
             <div className="rounded-xl ring-1 ring-ink-100">
               <p className="border-b border-ink-100 px-4 py-2.5 text-[13px] font-medium text-ink-700">
-                Gardes concernées ({planned.length})
+                {v.Shifts} concerné{v.sx(2)} ({planned.length})
               </p>
               <ul className="max-h-48 divide-y divide-ink-100 overflow-y-auto">
                 {planned.map((e) => (
@@ -138,19 +140,19 @@ export default function SickLeaveModal({
               </ul>
             </div>
           ) : (
-            <Callout tone="info">Aucune garde prévue pour cet agent sur cette période.</Callout>
+            <Callout tone="info">{v.AucunShift} prévu{v.sx()} pour cet {v.worker} sur cette période.</Callout>
           )
         )}
 
         {asReplacement > 0 && (
           <Callout tone="warning">
-            L’agent devait aussi faire {asReplacement} remplacement{asReplacement > 1 ? 's' : ''} sur la période : retirez-le{asReplacement > 1 ? 's' : ''} à la main dans le planning.
+            L’{v.worker} devait aussi faire {asReplacement} remplacement{asReplacement > 1 ? 's' : ''} sur la période : retirez-le{asReplacement > 1 ? 's' : ''} à la main dans le planning.
           </Callout>
         )}
 
         {kind === 'maladie' && (
           <p className="text-xs text-ink-500">
-            Paie au mois : pas de retenue pour maladie. Paie à la garde ou à l’heure : les gardes non faites ne sont pas payées.
+            Paie au mois : pas de retenue pour maladie. Paie {v.AuShift.charAt(0).toLowerCase() + v.AuShift.slice(1)} ou à l’heure : les {v.shifts} non fait{v.sx(2)} ne sont pas payé{v.sx(2)}.
           </p>
         )}
       </div>

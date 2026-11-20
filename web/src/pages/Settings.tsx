@@ -1,3 +1,4 @@
+import { useVocab } from '../lib/sector'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Clock, Moon, Plus, Sun, Trash2 } from 'lucide-react'
 import { errorMessage, supabase, type ShiftType } from '../lib/supabase'
@@ -51,15 +52,15 @@ export default function Settings() {
     const { error } = await supabase.from('shift_types').delete().eq('id', deleting.id)
     setDeleting(null)
     if (error) {
-      return toast.error(error.code === '23503' ? 'Cette garde est utilisée dans le planning : impossible de la supprimer.' : errorMessage(error))
+      return toast.error(error.code === '23503' ? 'Cet horaire est utilisé dans le planning : impossible de le supprimer.' : errorMessage(error))
     }
-    toast.success('Type de garde supprimé')
+    toast.success('Horaire supprimé')
     loadShifts()
   }
 
   return (
     <>
-      <PageHeader title="Paramètres" description="Informations de l’entreprise et types de garde." />
+      <PageHeader title="Paramètres" description="Informations de l’entreprise, horaires de travail et paie." />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
@@ -92,7 +93,7 @@ export default function Settings() {
           <Card>
             <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4">
               <div>
-                <h2 className="font-semibold">Types de garde</h2>
+                <h2 className="font-semibold">Horaires de travail</h2>
                 <p className="text-sm text-ink-500">Utilisés pour le planning et le calcul des heures.</p>
               </div>
               <Button size="sm" variant="secondary" icon={Plus} onClick={() => setEditing('new')}>Ajouter</Button>
@@ -117,7 +118,7 @@ export default function Settings() {
                   </li>
                 )
               })}
-              {shifts.length === 0 && <li className="px-5 py-6 text-center text-sm text-ink-500">Aucun type de garde.</li>}
+              {shifts.length === 0 && <li className="px-5 py-6 text-center text-sm text-ink-500">Aucun horaire.</li>}
             </ul>
           </Card>
         </div>
@@ -138,7 +139,7 @@ export default function Settings() {
         open={!!deleting}
         onClose={() => setDeleting(null)}
         danger
-        title="Supprimer ce type de garde ?"
+        title="Supprimer cet horaire ?"
         text={`« ${deleting?.label} » ne sera plus proposé dans le planning.`}
         confirmLabel="Supprimer"
         onConfirm={removeShift}
@@ -162,7 +163,7 @@ function ShiftModal({ shift, companyId, onClose, onSaved }: { shift: ShiftType |
     const { error } = shift ? await supabase.from('shift_types').update(payload).eq('id', shift.id) : await supabase.from('shift_types').insert(payload)
     setLoading(false)
     if (error) return toast.error(error.code === '23505' ? 'Ce code est déjà utilisé.' : errorMessage(error))
-    toast.success('Type de garde enregistré')
+    toast.success('Horaire enregistré')
     onSaved()
     onClose()
   }
@@ -172,7 +173,7 @@ function ShiftModal({ shift, companyId, onClose, onSaved }: { shift: ShiftType |
       open
       onClose={onClose}
       size="sm"
-      title={shift ? 'Modifier la garde' : 'Nouveau type de garde'}
+      title={shift ? 'Modifier l’horaire' : 'Nouvel horaire'}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Annuler</Button>
@@ -194,6 +195,7 @@ function ShiftModal({ shift, companyId, onClose, onSaved }: { shift: ShiftType |
 }
 
 function PayrollSettingsCard({ companyId }: { companyId: string }) {
+  const vc = useVocab()
   const toast = useToast()
   const [v, setV] = useState<Omit<PayrollSettings, 'company_id'> | null>(null)
   const [saving, setSaving] = useState(false)
@@ -217,9 +219,11 @@ function PayrollSettingsCard({ companyId }: { companyId: string }) {
   async function save(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
-    const { company_id: _ignored, updated_at: _u, ...rest } = v as PayrollSettings & { updated_at?: string }
+    // breaks_enabled est une option de la société (table companies), pas de la paie
+    const { company_id: _ignored, updated_at: _u, breaks_enabled: _b, ...rest } = v as PayrollSettings & { updated_at?: string }
     void _ignored
     void _u
+    void _b
     const { error } = await supabase.from('payroll_settings').upsert({ ...rest, company_id: companyId })
     setSaving(false)
     if (error) return toast.error(errorMessage(error))
@@ -234,14 +238,14 @@ function PayrollSettingsCard({ companyId }: { companyId: string }) {
           <p className="text-sm text-ink-500">Utilisées au prochain calcul ou recalcul. Une paie déjà validée ne change pas.</p>
         </div>
         <div className="grid gap-x-4 gap-y-5 p-5 sm:grid-cols-2">
-          <Field label="Retenue par absence injustifiée" hint={`1/${v.absence_divisor} du salaire de base par garde manquée`}>
+          <Field label="Retenue par absence injustifiée" hint={`1/${v.absence_divisor} du salaire de base par ${vc.shift} manqué${vc.sx()}`}>
             <div className="flex items-center gap-2">
               <span className="text-sm text-ink-500">1 /</span>
               <Input type="number" min={1} max={31} value={v.absence_divisor} onChange={num('absence_divisor')} className="w-24" />
             </div>
           </Field>
           <div className="flex items-center sm:pt-6">
-            <Toggle checked={v.unpunched_as_absence} onChange={(x) => setV({ ...v, unpunched_as_absence: x })} label="Garde non pointée = absence injustifiée" />
+            <Toggle checked={v.unpunched_as_absence} onChange={(x) => setV({ ...v, unpunched_as_absence: x })} label={`${vc.Shift} non pointé${vc.sx()} = absence injustifiée`} />
           </div>
           <div className="sm:col-span-2">
             <Toggle checked={v.late_deduction} onChange={(x) => setV({ ...v, late_deduction: x })} label="Retenir les retards" />
@@ -251,7 +255,7 @@ function PayrollSettingsCard({ companyId }: { companyId: string }) {
               <Field label="Tolérance de retard par mois (minutes)" hint="Seules les minutes au-delà sont retenues">
                 <Input type="number" min={0} value={v.late_tolerance_min} onChange={num('late_tolerance_min')} />
               </Field>
-              <Field label="Durée d’une garde de référence (heures)" hint="Sert à convertir les minutes de retard en GNF">
+              <Field label={`Durée d’${vc.unShift} de référence (heures)`} hint="Sert à convertir les minutes de retard en GNF">
                 <Input type="number" min={1} max={24} step={0.5} value={v.reference_shift_hours} onChange={num('reference_shift_hours')} />
               </Field>
             </>
@@ -270,7 +274,7 @@ function PayrollSettingsCard({ companyId }: { companyId: string }) {
           <div className="border-t border-ink-100 pt-5 sm:col-span-2">
             <Toggle checked={v.overtime_enabled} onChange={(x) => setV({ ...v, overtime_enabled: x })} label="Payer les heures supplémentaires" />
             <p className="mt-1 pl-[52px] text-xs text-ink-500">
-              Heures pointées au-delà du seuil de la semaine. Utile dans l’industrie ; à laisser désactivé si vos gardes de 12 h sont déjà comprises dans le salaire.
+              Heures pointées au-delà du seuil de la semaine. Utile dans l’industrie et le BTP ; à laisser désactivé si les longues journées (12 h) sont déjà comprises dans le salaire.
             </p>
           </div>
           {v.overtime_enabled && (
@@ -292,8 +296,31 @@ function PayrollSettingsCard({ companyId }: { companyId: string }) {
               <Field label="Majoration au-delà (%)" hint={`Ex. ${v.overtime_tier1_hours} premières heures à +${v.overtime_tier1_pct} %, puis +${v.overtime_tier2_pct} %`}>
                 <Input type="number" min={0} max={300} value={v.overtime_tier2_pct} onChange={num('overtime_tier2_pct')} />
               </Field>
+              <div className="sm:col-span-2">
+                <Toggle
+                  checked={!!v.overtime_requires_approval}
+                  onChange={(x) => setV({ ...v, overtime_requires_approval: x })}
+                  label="Faire valider les heures sup par un responsable avant de les payer"
+                />
+                <p className="mt-1 pl-[52px] text-xs text-ink-500">
+                  Le temps pointé après la fin {vc.duShift} compte aussi. Rien n’est payé tant qu’un responsable n’a pas validé la semaine (menu Paie → Heures sup).
+                </p>
+              </div>
             </>
           )}
+          <div className="border-t border-ink-100 pt-5 sm:col-span-2">
+            <p className="text-sm font-medium text-ink-800">Pauses</p>
+            <p className="mt-0.5 text-xs text-ink-500">Utilisé seulement si le pointage des pauses est activé (carte « Pointage »).</p>
+          </div>
+          <Field label="Pause payée par poste (minutes)" hint="Ce temps n’est pas retiré des heures travaillées">
+            <Input type="number" min={0} max={240} step={5} value={v.break_paid_min} onChange={num('break_paid_min')} />
+          </Field>
+          <Field label="Pause oubliée : minutes retirées" hint="Si aucune pause n’est pointée sur un poste de 6 h ou plus (0 = rien)">
+            <Input type="number" min={0} max={240} step={5} value={v.break_auto_min} onChange={num('break_auto_min')} />
+          </Field>
+          <Field label="Pause trop longue au-delà de (minutes)" hint="Signalée dans les pointages">
+            <Input type="number" min={5} max={480} step={5} value={v.break_max_min} onChange={num('break_max_min')} />
+          </Field>
         </div>
         <div className="flex items-center justify-between gap-4 rounded-b-2xl border-t border-ink-100 bg-ink-50/60 px-5 py-3">
           <p className="text-xs text-ink-500">Cotisations sociales et impôts : non calculés (utilisez « autre retenue »).</p>
@@ -306,10 +333,25 @@ function PayrollSettingsCard({ companyId }: { companyId: string }) {
 
 /** Réglages du pointage : selfie obligatoire */
 function PunchSettingsCard() {
+  const vc = useVocab()
   const { company, reload } = useCompany()
   const toast = useToast()
   const [on, setOn] = useState(!!company.punch_photo_required)
+  const [breaks, setBreaks] = useState(!!company.breaks_enabled)
   const [saving, setSaving] = useState(false)
+
+  async function changeBreaks(v: boolean) {
+    setBreaks(v)
+    setSaving(true)
+    const { error } = await supabase.from('companies').update({ breaks_enabled: v }).eq('id', company.id)
+    setSaving(false)
+    if (error) {
+      setBreaks(!v)
+      return toast.error(errorMessage(error))
+    }
+    toast.success(v ? 'Pointage des pauses activé' : 'Pointage des pauses désactivé')
+    reload()
+  }
 
   async function change(v: boolean) {
     setOn(v)
@@ -332,11 +374,18 @@ function PunchSettingsCard() {
       </div>
       <div className="space-y-3 p-5">
         <div className={saving ? 'pointer-events-none opacity-60' : ''}>
-          <Toggle checked={on} onChange={change} label="Selfie obligatoire quand un agent pointe avec son téléphone" />
+          <Toggle checked={on} onChange={change} label={`Selfie obligatoire quand un ${vc.worker} pointe avec son téléphone`} />
         </div>
         <p className="text-sm text-ink-500">
-          La photo est visible dans « Pointages », en ouvrant la fiche de l’agent. Les alertes (téléphone partagé, position figée ou imprécise,
+          La photo est visible dans « Pointages », en ouvrant la fiche de l’{vc.worker}. Les alertes (téléphone partagé, position figée ou imprécise,
           hors zone, selfie manquant) sont calculées automatiquement dans tous les cas.
+        </p>
+        <div className={saving ? 'pointer-events-none border-t border-ink-100 pt-4 opacity-60' : 'border-t border-ink-100 pt-4'}>
+          <Toggle checked={breaks} onChange={changeBreaks} label="Pointage des pauses (début et fin de pause)" />
+        </div>
+        <p className="text-sm text-ink-500">
+          Les {vc.workers} voient deux boutons de plus en scannant le QR code. Le temps de pause est retiré des heures travaillées
+          (réglages dans « Paie » ci-dessous : pause payée, pause oubliée, pause trop longue).
         </p>
       </div>
     </Card>

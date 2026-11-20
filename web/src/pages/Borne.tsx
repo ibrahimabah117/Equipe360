@@ -1,3 +1,4 @@
+import { useVocab } from '../lib/sector'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import QrScanner from 'qr-scanner'
@@ -40,6 +41,7 @@ function beep(ok: boolean) {
 /** Borne de pointage : un responsable scanne le badge de chaque employé à l'entrée du site */
 export default function Borne() {
   const { company } = useCompany()
+  const v = useVocab()
   const online = useOnline()
   const { queue } = usePunchQueue()
   const [sites, setSites] = useState<Site[] | null>(null)
@@ -76,7 +78,8 @@ export default function Borne() {
       setSites(siteList)
       setEmployees(emps)
       for (const x of (p.data ?? []) as Pick<Punch, 'employee_id' | 'kind' | 'punched_at'>[]) {
-        lastKind.current.set(x.employee_id, { kind: x.kind, at: +new Date(x.punched_at) })
+        // une pause ne fait pas quitter le site : la borne la traite comme une présence
+        lastKind.current.set(x.employee_id, { kind: x.kind === 'out' ? 'out' : 'in', at: +new Date(x.punched_at) })
       }
       if (!siteId && siteList.length === 1) setSiteId(siteList[0].id)
     })()
@@ -186,7 +189,7 @@ export default function Borne() {
 
       <div className="mb-4 grid gap-3 sm:grid-cols-[1fr_auto]">
         <Select value={siteId} onChange={(e) => setSiteId(e.target.value)}>
-          <option value="">Choisir le site de cette borne…</option>
+          <option value="">Choisir {v.leSite} de cette borne…</option>
           {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </Select>
         <div className="flex rounded-xl bg-ink-100 p-1 text-[13px] font-medium">
@@ -205,7 +208,7 @@ export default function Borne() {
       </div>
 
       {!site ? (
-        <Callout tone="info" title="Choisissez le site">La borne enregistre tous les pointages sur ce site. Le choix est gardé sur cet appareil.</Callout>
+        <Callout tone="info" title={`Choisissez ${v.leSite}`}>La borne enregistre tous les pointages sur {v.ceSite}. Le choix est gardé sur cet appareil.</Callout>
       ) : (
         <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr]">
           <div>

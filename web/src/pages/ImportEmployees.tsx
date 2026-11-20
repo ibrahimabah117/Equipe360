@@ -1,3 +1,4 @@
+import { useVocab, type Vocab } from '../lib/sector'
 import { useMemo, useRef, useState } from 'react'
 import { readSheet } from 'read-excel-file/browser'
 import writeExcelFile from 'write-excel-file/browser'
@@ -29,16 +30,16 @@ const norm = (s: unknown) =>
 
 const COLS: Record<keyof Pick<ParsedRow, 'full_name' | 'phoneRaw' | 'job_title' | 'site' | 'base_salary' | 'pay_mode'>, string[]> = {
   pay_mode: ['mode de paie', 'mode', 'type de paie', 'paiement', 'mode de paiement'],
-  full_name: ['nom complet', 'nom et prenom', 'nom prenom', 'prenom nom', 'nom', 'name', 'full name', 'employe', 'agent'],
+  full_name: ['nom complet', 'nom et prenom', 'nom prenom', 'prenom nom', 'nom', 'name', 'full name', 'employe', 'agent', 'ouvrier', 'personnel'],
   phoneRaw: ['telephone', 'tel', 'phone', 'numero', 'contact', 'portable'],
   job_title: ['poste', 'fonction', 'emploi', 'job', 'titre'],
-  site: ['site', 'lieu', 'affectation', 'poste de garde', 'client'],
+  site: ['site', 'lieu', 'affectation', 'poste de garde', 'client', 'chantier', 'atelier', 'service', 'magasin', 'etablissement'],
   base_salary: ['montant gnf', 'montant', 'tarif', 'salaire de base gnf', 'salaire de base', 'salaire', 'salaire gnf', 'remuneration', 'paie'],
 }
 
 function parseMode(v: unknown): ParsedRow['pay_mode'] {
   const t = norm(v)
-  if (t.includes('garde') || t.includes('vacation') || t.includes('jour')) return 'per_shift'
+  if (['garde', 'vacation', 'jour', 'poste', 'creneau', 'journee', 'tache'].some((k) => t.includes(k))) return 'per_shift'
   if (t.includes('heure') || t.includes('horaire')) return 'hourly'
   return 'monthly'
 }
@@ -49,17 +50,19 @@ function parseNumber(v: unknown): number {
   return Number.isFinite(n) ? Math.round(n) : 0
 }
 
-export async function downloadTemplate() {
+export async function downloadTemplate(v: Vocab) {
+  const [a, b] = v.importExamples
+  const perShift = v.Shift
   await writeExcelFile(
     [
-      ['Nom complet', 'Téléphone', 'Poste', 'Site', 'Mode de paie', 'Montant (GNF)'].map((v) => ({ value: v, fontWeight: 'bold' as const })),
-      [{ value: 'Ibrahima Sow' }, { value: '622 12 34 56' }, { value: 'Agent de sécurité' }, { value: 'Banque Centrale - Kaloum' }, { value: 'Mois' }, { value: 1500000 }],
-      [{ value: 'Mariama Camara' }, { value: '655 98 76 54' }, { value: 'Chef de poste' }, { value: 'Ambassade - Ratoma' }, { value: 'Mois' }, { value: 2200000 }],
-      [{ value: 'Sékou Keita' }, { value: '664 00 33 21' }, { value: 'Agent de sécurité' }, { value: 'Entrepôt Matoto' }, { value: 'Garde' }, { value: 60000 }],
-      [{ value: 'Hawa Soumah' }, { value: '654 40 11 88' }, { value: 'Agent d’entretien' }, { value: 'Résidence Dixinn' }, { value: 'Heure' }, { value: 5000 }],
+      ['Nom complet', 'Téléphone', 'Poste', v.Site, 'Mode de paie', 'Montant (GNF)'].map((x) => ({ value: x, fontWeight: 'bold' as const })),
+      [{ value: 'Ibrahima Sow' }, { value: '622 12 34 56' }, { value: a.job }, { value: a.site }, { value: 'Mois' }, { value: 1500000 }],
+      [{ value: 'Mariama Camara' }, { value: '655 98 76 54' }, { value: b.job }, { value: b.site }, { value: 'Mois' }, { value: 2200000 }],
+      [{ value: 'Sékou Keita' }, { value: '664 00 33 21' }, { value: a.job }, { value: b.site }, { value: perShift }, { value: 60000 }],
+      [{ value: 'Hawa Soumah' }, { value: '654 40 11 88' }, { value: b.job }, { value: a.site }, { value: 'Heure' }, { value: 5000 }],
     ],
     { columns: [{ width: 28 }, { width: 18 }, { width: 20 }, { width: 28 }, { width: 14 }, { width: 16 }] },
-  ).toFile('modele-employes-equipe360.xlsx')
+  ).toFile('modele-personnel-equipe360.xlsx')
 }
 
 export default function ImportEmployeesModal({
@@ -78,6 +81,7 @@ export default function ImportEmployeesModal({
   onDone: () => void
 }) {
   const toast = useToast()
+  const v = useVocab()
   const input = useRef<HTMLInputElement>(null)
   const [rows, setRows] = useState<ParsedRow[] | null>(null)
   const [fileName, setFileName] = useState('')
@@ -269,10 +273,10 @@ export default function ImportEmployeesModal({
               <FileSpreadsheet className="size-8 text-emerald-600" />
               <div>
                 <p className="text-sm font-medium">Modèle Excel</p>
-                <p className="text-xs text-ink-500">Nom · Téléphone · Poste · Site · Mode de paie (mois, garde, heure) · Montant</p>
+                <p className="text-xs text-ink-500">Nom · Téléphone · Poste · {v.Site} · Mode de paie (mois, {v.shift}, heure) · Montant</p>
               </div>
             </div>
-            <Button variant="secondary" size="sm" onClick={downloadTemplate}>Télécharger</Button>
+            <Button variant="secondary" size="sm" onClick={() => downloadTemplate(v)}>Télécharger</Button>
           </div>
         </div>
       ) : (
@@ -286,11 +290,11 @@ export default function ImportEmployeesModal({
           {newSites.length > 0 && (
             <div className="rounded-xl bg-amber-50 p-4 ring-1 ring-amber-100">
               <p className="text-sm text-amber-900">
-                <span className="font-medium">{newSites.length} site{newSites.length > 1 ? 's' : ''} inconnu{newSites.length > 1 ? 's' : ''} :</span>{' '}
+                <span className="font-medium">{v.nSites(newSites.length)} inconnu{newSites.length > 1 ? 's' : ''} :</span>{' '}
                 {newSites.slice(0, 4).join(', ')}{newSites.length > 4 ? '…' : ''}
               </p>
               <div className="mt-3">
-                <Toggle checked={createSites} onChange={setCreateSites} label="Créer ces sites automatiquement" />
+                <Toggle checked={createSites} onChange={setCreateSites} label={`Créer ces ${v.sites} automatiquement`} />
               </div>
             </div>
           )}
@@ -302,7 +306,7 @@ export default function ImportEmployeesModal({
                   <Th>Ligne</Th>
                   <Th>Nom</Th>
                   <Th>Téléphone</Th>
-                  <Th>Site</Th>
+                  <Th>{v.Site}</Th>
                   <Th className="text-right">Salaire</Th>
                   <Th>État</Th>
                 </tr>
@@ -316,7 +320,7 @@ export default function ImportEmployeesModal({
                     <Td className="text-ink-600">{r.site ?? '—'}</Td>
                     <Td className="tabular text-right">
                       {formatGNF(r.base_salary)}
-                      <span className="text-ink-400"> {r.pay_mode === 'per_shift' ? '/ garde' : r.pay_mode === 'hourly' ? '/ h' : '/ mois'}</span>
+                      <span className="text-ink-400"> {r.pay_mode === 'per_shift' ? `/ ${v.shift}` : r.pay_mode === 'hourly' ? '/ h' : '/ mois'}</span>
                     </Td>
                     <Td>
                       {r.error ? <Badge tone="red">{r.error}</Badge> : r.update ? <Badge tone="brand">Mise à jour</Badge> : <Badge tone="green">Nouveau</Badge>}

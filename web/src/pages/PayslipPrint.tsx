@@ -1,3 +1,4 @@
+import { useVocab } from '../lib/sector'
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, FileX, Printer } from 'lucide-react'
@@ -10,6 +11,7 @@ import { LogoMark } from '../ui/Logo'
 
 export default function PayslipPrint() {
   const { company, canManage } = useCompany()
+  const vo = useVocab()
   const { period = '' } = useParams()
   const [params] = useSearchParams()
   const only = params.get('e')
@@ -104,9 +106,9 @@ export default function PayslipPrint() {
                   ['Employé', e?.full_name ?? '—'],
                   ['Téléphone', formatPhone(e?.phone)],
                   ['Poste', e?.job_title ?? '—'],
-                  ['Site d’affectation', site?.name ?? '—'],
+                  [`${vo.Site} d’affectation`, site?.name ?? '—'],
                   ['Date d’embauche', formatDate(e?.hire_date)],
-                  ['Gardes effectuées', `${s.shifts_worked} sur ${s.shifts_planned} prévues`],
+                  [`${vo.Shifts} effectué${vo.sx(2)}`, `${s.shifts_worked} sur ${s.shifts_planned} prévu${vo.sx(2)}`],
                 ].map(([k, v]) => (
                   <div key={k} className="flex justify-between gap-3">
                     <span className="text-ink-500">{k}</span>

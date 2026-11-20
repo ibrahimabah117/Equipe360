@@ -2,7 +2,11 @@
 
 Logiciel de gestion des équipes pour les entreprises de Guinée (Conakry) : planning, pointage par QR code avec GPS, absences et remplacements, calcul de la paie en GNF.
 
-Premier secteur visé : les sociétés de gardiennage.
+Un seul logiciel, adapté au métier de chaque client : gardiennage, BTP, usine de production,
+sous-traitance minière, école, nettoyage (et commerce, santé, hôtellerie).
+À la création d'un client, le secteur choisi installe ses horaires types et ses réglages de paie,
+et l'appli parle son langage (sites / ateliers / chantiers, agents / employés / ouvriers,
+gardes / postes / journées / créneaux / vacations). Le vocabulaire est dans `web/src/lib/sector.ts`.
 
 ## Stack prévue
 

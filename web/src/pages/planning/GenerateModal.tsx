@@ -3,6 +3,8 @@ import { Sparkles } from 'lucide-react'
 import { errorMessage, supabase } from '../../lib/supabase'
 import { addDays, parseIso, today, weekStart } from '../../lib/dates'
 import { Avatar, Button, Callout, cx, Field, Input, Modal, Select, Toggle, useToast } from '../../ui'
+import { useCompany } from '../../lib/company'
+import { useVocab } from '../../lib/sector'
 import type { PlanningData } from './Modals'
 import { shiftTone, toneClasses } from './common'
 
@@ -11,18 +13,38 @@ interface Preset {
   label: string
   hint: string
   kind: 'cycle' | 'weekly'
-  seq: string[] // codes de garde, '-' = repos
+  seq: string[] // codes d'horaire, '-' = repos
+  /** secteurs pour lesquels ce rythme est proposé en premier */
+  sectors?: string[]
 }
 
-const PRESETS: Preset[] = [
-  { id: 'jjnnrr', label: '2 jours · 2 nuits · 2 repos', hint: 'Cycle de 6 jours, très courant en gardiennage', kind: 'cycle', seq: ['J', 'J', 'N', 'N', '-', '-'] },
+const rep = (code: string, n: number) => Array<string>(n).fill(code)
+
+/** Rythmes types. Ceux dont les horaires n'existent pas chez le client sont masqués. */
+const FIXED_PRESETS: Preset[] = [
+  { id: 'jjnnrr', label: '2 jours · 2 nuits · 2 repos', hint: 'Cycle de 6 jours, très courant en gardiennage', kind: 'cycle', seq: ['J', 'J', 'N', 'N', '-', '-'], sectors: ['gardiennage', 'sante'] },
   { id: 'jnrr', label: '1 jour · 1 nuit · 2 repos', hint: 'Cycle de 4 jours', kind: 'cycle', seq: ['J', 'N', '-', '-'] },
-  { id: 'j6', label: 'Jour, repos le dimanche', hint: 'Du lundi au samedi', kind: 'weekly', seq: ['J', 'J', 'J', 'J', 'J', 'J', '-'] },
-  { id: 'n6', label: 'Nuit, repos le dimanche', hint: 'Du lundi au samedi', kind: 'weekly', seq: ['N', 'N', 'N', 'N', 'N', 'N', '-'] },
-  { id: 'j7', label: 'Jour tous les jours', hint: '7 jours sur 7', kind: 'cycle', seq: ['J'] },
-  { id: 'n7', label: 'Nuit tous les jours', hint: '7 jours sur 7', kind: 'cycle', seq: ['N'] },
-  { id: 'custom', label: 'Personnalisé', hint: 'Votre propre cycle', kind: 'cycle', seq: [] },
+  { id: 'rot14', label: '14 jours · 7 repos', hint: 'Rotation minière : 2 semaines sur site, 1 semaine de repos', kind: 'cycle', seq: [...rep('J', 14), ...rep('-', 7)], sectors: ['mines'] },
+  { id: 'rot777', label: '7 jours · 7 nuits · 7 repos', hint: 'Rotation minière jour/nuit sur 3 semaines', kind: 'cycle', seq: [...rep('J', 7), ...rep('N', 7), ...rep('-', 7)], sectors: ['mines'] },
+  { id: 'rot21', label: '21 jours · 7 repos', hint: 'Rotation longue (sites éloignés)', kind: 'cycle', seq: [...rep('J', 21), ...rep('-', 7)] },
+  { id: '3x8', label: '3×8 tournant', hint: 'Une semaine matin, une semaine soir, une semaine nuit', kind: 'cycle', seq: [...rep('M', 6), '-', ...rep('S', 6), '-', ...rep('N', 6), '-'], sectors: ['usine', 'hotellerie'] },
 ]
+
+function buildPresets(shifts: { code: string; label: string }[]): Preset[] {
+  const codes = new Set(shifts.map((s) => s.code.toUpperCase()))
+  const ok = (p: Preset) => p.seq.every((c) => c === '-' || codes.has(c))
+  const weekly: Preset[] = shifts.flatMap((s) => [
+    { id: 'w6-' + s.code, label: `${s.label}, repos le dimanche`, hint: 'Du lundi au samedi', kind: 'weekly' as const, seq: [...rep(s.code.toUpperCase(), 6), '-'] },
+    { id: 'w5-' + s.code, label: `${s.label}, du lundi au vendredi`, hint: 'Repos samedi et dimanche', kind: 'weekly' as const, seq: [...rep(s.code.toUpperCase(), 5), '-', '-'] },
+  ])
+  const daily: Preset[] = shifts.map((s) => ({ id: 'd7-' + s.code, label: `${s.label} tous les jours`, hint: '7 jours sur 7', kind: 'cycle' as const, seq: [s.code.toUpperCase()] }))
+  return [
+    ...FIXED_PRESETS.filter(ok),
+    ...weekly,
+    ...daily,
+    { id: 'custom', label: 'Personnalisé', hint: 'Votre propre cycle', kind: 'cycle', seq: [] },
+  ]
+}
 
 export default function GenerateModal({
   data,
@@ -38,7 +60,12 @@ export default function GenerateModal({
   onDone: () => void
 }) {
   const toast = useToast()
-  const [presetId, setPresetId] = useState(data.shifts.some((s) => s.code === 'J') && data.shifts.some((s) => s.code === 'N') ? 'jjnnrr' : 'custom')
+  const { company } = useCompany()
+  const v = useVocab()
+  const presets = useMemo(() => buildPresets(data.shifts), [data.shifts])
+  const [presetId, setPresetId] = useState(
+    () => (presets.find((p) => p.sectors?.includes(company.sector)) ?? presets[0]).id,
+  )
   const [custom, setCustom] = useState(data.shifts.map((s) => s.code).concat('-').join(' '))
   const [from, setFrom] = useState(defaultStart)
   const [to, setTo] = useState(addDays(defaultStart, 6))
@@ -48,7 +75,7 @@ export default function GenerateModal({
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [loading, setLoading] = useState(false)
 
-  const preset = PRESETS.find((p) => p.id === presetId)!
+  const preset = presets.find((p) => p.id === presetId) ?? presets[presets.length - 1]
   const seq = preset.id === 'custom' ? custom.trim().toUpperCase().split(/[\s,;]+/).filter(Boolean) : preset.seq
   const shiftByCode = useMemo(() => Object.fromEntries(data.shifts.map((s) => [s.code.toUpperCase(), s])), [data.shifts])
   const unknown = seq.filter((c) => c !== '-' && c !== 'R' && !shiftByCode[c])
@@ -106,7 +133,7 @@ export default function GenerateModal({
           .upsert(rows.slice(i, i + 500), { onConflict: 'employee_id,work_date,shift_type_id', ignoreDuplicates: true })
         if (error) throw error
       }
-      toast.success(`Planning généré : ${rows.length} garde${rows.length > 1 ? 's' : ''}`)
+      toast.success(`Planning généré : ${v.nShifts(rows.length)}`)
       onDone()
       onClose()
     } catch (e) {
@@ -131,7 +158,7 @@ export default function GenerateModal({
       onClose={onClose}
       size="lg"
       title="Générer le planning"
-      description="Appliquez un rythme de travail à plusieurs agents en une fois. Les gardes déjà saisies sont conservées."
+      description={`Appliquez un rythme de travail à plusieurs ${v.workers} en une fois. Les ${v.shifts} déjà saisi${v.sx(2)} sont conservé${v.sx(2)}.`}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Annuler</Button>
@@ -145,7 +172,7 @@ export default function GenerateModal({
         <section>
           <p className="mb-2 text-[13px] font-medium text-ink-700">Rythme de travail</p>
           <div className="grid gap-2 sm:grid-cols-2">
-            {PRESETS.map((p) => (
+            {presets.map((p) => (
               <button
                 key={p.id}
                 type="button"
@@ -189,7 +216,7 @@ export default function GenerateModal({
           )}
           {unknown.length > 0 && (
             <div className="mt-3">
-              <Callout tone="danger">Code inconnu : {unknown.join(', ')}. Créez ce type de garde dans Paramètres.</Callout>
+              <Callout tone="danger">Code inconnu : {unknown.join(', ')}. Créez cet horaire dans Paramètres.</Callout>
             </div>
           )}
         </section>
@@ -220,16 +247,16 @@ export default function GenerateModal({
                 {data.sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </Select>
             </Field>
-            <Field label="Lieu des gardes" className="flex-1">
+            <Field label="Lieu de travail" className="flex-1">
               <Select value={targetSite} onChange={(e) => setTargetSite(e.target.value)}>
-                <option value="">Site habituel de chaque agent</option>
+                <option value="">{v.Site} habituel de chaque {v.worker}</option>
                 {data.sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </Select>
             </Field>
           </div>
           <div className="max-h-52 overflow-y-auto rounded-xl ring-1 ring-ink-100">
             {pool.length === 0 ? (
-              <p className="p-4 text-sm text-ink-500">Aucun agent actif sur ce site.</p>
+              <p className="p-4 text-sm text-ink-500">Aucun {v.worker} actif sur {v.ceSite}.</p>
             ) : (
               <ul className="divide-y divide-ink-100">
                 {pool.map((e) => {
@@ -250,20 +277,20 @@ export default function GenerateModal({
           </div>
           {preset.kind === 'cycle' && seq.length > 1 && (
             <div className="mt-3">
-              <Toggle checked={spread} onChange={setSpread} label="Décaler les agents dans le cycle pour couvrir jour et nuit" />
+              <Toggle checked={spread} onChange={setSpread} label={`Décaler les ${v.workers} dans le cycle pour couvrir tous les horaires`} />
             </div>
           )}
         </section>
 
         {missingSite.length > 0 && (
           <Callout tone="warning">
-            {missingSite.length} agent{missingSite.length > 1 ? 's' : ''} sans site habituel {missingSite.length > 1 ? 'seront ignorés' : 'sera ignoré'}. Choisissez un lieu des gardes ou affectez-les à un site.
+            {v.nWorkers(missingSite.length)} sans {v.site} habituel {missingSite.length > 1 ? 'seront ignorés' : 'sera ignoré'}. Choisissez un lieu de travail ou affectez-les à {v.unSite}.
           </Callout>
         )}
         {rows.length > 0 && (
           <Callout tone="info">
-            {rows.length} garde{rows.length > 1 ? 's' : ''} pour {chosen.length - missingSite.length} agent{chosen.length - missingSite.length > 1 ? 's' : ''}
-            {existing > 0 && ` — dont ${existing} déjà au planning (conservée${existing > 1 ? 's' : ''})`}. Les gardes existantes ne sont jamais écrasées.
+            {v.nShifts(rows.length)} pour {v.nWorkers(chosen.length - missingSite.length)}
+            {existing > 0 && ` — dont ${existing} déjà au planning (conservé${v.sx(existing)})`}. Les {v.shifts} existant{v.sx(2)} ne sont jamais écrasé{v.sx(2)}.
           </Callout>
         )}
       </div>

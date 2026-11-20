@@ -1,6 +1,8 @@
+import { isBreak, KIND_LABEL } from '../lib/punchKinds'
+import { useVocab } from '../lib/sector'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { Building2, CalendarX2, CheckCircle2, ChevronRight, CloudOff, FileText, LogIn, LogOut, MapPinOff, PauseCircle, ScanLine, ShieldX } from 'lucide-react'
+import { Building2, CalendarX2, CheckCircle2, ChevronRight, CloudOff, Coffee, FileText, LogIn, LogOut, MapPinOff, PauseCircle, ScanLine, ShieldX } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useCompany } from '../lib/company'
 import { supabase, type Employee, type Punch, type ScheduleEntry, type ShiftType, type Site } from '../lib/supabase'
@@ -139,6 +141,7 @@ export function CompanyNotFound() {
 /** Espace de l'agent : pointer, voir ses gardes et ses derniers pointages (fonctionne hors ligne) */
 export function AgentHome() {
   const { company, employeeId } = useCompany()
+  const v = useVocab()
   const { queue, failed, syncing } = usePunchQueue()
   const cacheKey = `agent.${company.id}.${employeeId}`
   const [d, setD] = useState<AgentData | null>(() => cacheGet<AgentData>(cacheKey))
@@ -198,7 +201,7 @@ export function AgentHome() {
       <div className="mb-5 flex items-center gap-3">
         <Avatar name={emp?.full_name} size="lg" />
         <div className="min-w-0">
-          <h1 className="truncate text-xl font-semibold">{emp?.full_name ?? 'Agent'}</h1>
+          <h1 className="truncate text-xl font-semibold">{emp?.full_name ?? v.Worker}</h1>
           <p className="truncate text-sm text-ink-500">{emp?.job_title ?? ''}{site ? ` · ${site.name}` : ''}</p>
         </div>
       </div>
@@ -210,7 +213,7 @@ export function AgentHome() {
           </span>
           <span className="flex-1">
             <span className="block text-lg font-semibold">Pointer</span>
-            <span className="block text-sm text-white/80">Scanner le QR code du site</span>
+            <span className="block text-sm text-white/80">Scanner le QR code {v.duSite}</span>
           </span>
           <ChevronRight className="size-5 text-white/70" />
         </div>
@@ -227,7 +230,7 @@ export function AgentHome() {
       {failed.length > 0 && (
         <div className="mt-3">
           <Callout tone="danger" title="Pointage refusé par le serveur">
-            {failed.map((f) => `${f.kind === 'in' ? 'Arrivée' : 'Départ'} ${timeAt(f.punched_at)} : ${f.error}`).join(' · ')}{' '}
+            {failed.map((f) => `${KIND_LABEL[f.kind]} ${timeAt(f.punched_at)} : ${f.error}`).join(' · ')}{' '}
             <button className="font-medium underline" onClick={clearFailed}>Masquer</button>
           </Callout>
         </div>
@@ -266,17 +269,17 @@ export function AgentHome() {
           <ul className="divide-y divide-ink-100">
             {queue.filter((q) => !q.employee_id).map((q) => (
               <li key={q.client_id} className="flex items-center gap-3 px-5 py-3 text-sm">
-                {q.kind === 'in' ? <LogIn className="size-4 text-emerald-500" /> : <LogOut className="size-4 text-brand-500" />}
-                <span className="flex-1">{q.kind === 'in' ? 'Arrivée' : 'Départ'} · {q.site_name ?? 'Site'}</span>
+                {q.kind === 'in' ? <LogIn className="size-4 text-emerald-500" /> : isBreak(q.kind) ? <Coffee className="size-4 text-amber-500" /> : <LogOut className="size-4 text-brand-500" />}
+                <span className="flex-1">{KIND_LABEL[q.kind]} · {q.site_name ?? 'Site'}</span>
                 <span className="tabular font-medium">{timeAt(q.punched_at)}</span>
                 <CloudOff className="size-4 text-amber-500" />
               </li>
             ))}
             {d?.punches.map((p) => (
               <li key={p.id} className="flex items-center gap-3 px-5 py-3 text-sm">
-                {p.kind === 'in' ? <LogIn className="size-4 text-emerald-500" /> : <LogOut className="size-4 text-brand-500" />}
+                {p.kind === 'in' ? <LogIn className="size-4 text-emerald-500" /> : isBreak(p.kind) ? <Coffee className="size-4 text-amber-500" /> : <LogOut className="size-4 text-brand-500" />}
                 <span className="flex-1 truncate">
-                  {p.kind === 'in' ? 'Arrivée' : 'Départ'} · {d.sites[p.site_id]?.name ?? 'Site'}
+                  {KIND_LABEL[p.kind]} · {d.sites[p.site_id]?.name ?? 'Site'}
                   <span className="ml-1 text-xs text-ink-400">{dateAt(p.punched_at) === today() ? '' : dayLong(dateAt(p.punched_at))}</span>
                 </span>
                 <span className="tabular font-medium">{timeAt(p.punched_at)}</span>
@@ -309,11 +312,11 @@ export function AgentHome() {
 
       <Card className="mt-4">
         <div className="border-b border-ink-100 px-5 py-4">
-          <h2 className="font-semibold">Mes prochaines gardes</h2>
+          <h2 className="font-semibold">Mes prochain{v.sx(2)} {v.shifts}</h2>
           <p className="text-sm text-ink-500">14 prochains jours</p>
         </div>
         {!d?.upcoming.length ? (
-          <p className="px-5 py-6 text-center text-sm text-ink-500">Aucune garde prévue pour le moment.</p>
+          <p className="px-5 py-6 text-center text-sm text-ink-500">{v.AucunShift} prévu{v.sx()} pour le moment.</p>
         ) : (
           <ul className="divide-y divide-ink-100">
             {d.upcoming.map((e) => {

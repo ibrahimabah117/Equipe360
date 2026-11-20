@@ -1,3 +1,4 @@
+import { useVocab } from '../lib/sector'
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import writeExcelFile from 'write-excel-file/browser'
 import {
@@ -54,6 +55,7 @@ type View = 'agents' | 'sites'
 
 export default function Planning() {
   const { company } = useCompany()
+  const v = useVocab()
   const toast = useToast()
   const [start, setStart] = useState(() => weekStart(today()))
   const [view, setView] = useState<View>('agents')
@@ -177,9 +179,9 @@ export default function Planning() {
       bySite.set(k, [...(bySite.get(k) ?? []), e])
     }
     const ordered = base.sites.filter((s) => bySite.has(s.id)).map((s) => ({ id: s.id, name: s.name, people: bySite.get(s.id)! }))
-    if (bySite.has('')) ordered.push({ id: '', name: 'Sans site habituel', people: bySite.get('')! })
+    if (bySite.has('')) ordered.push({ id: '', name: `Sans ${v.site} habituel`, people: bySite.get('')! })
     return ordered
-  }, [base, q, siteFilter, entries, siteById])
+  }, [base, q, siteFilter, entries, siteById, v.site])
 
   async function copyPreviousWeek() {
     setBusy(true)
@@ -206,7 +208,7 @@ export default function Planning() {
     setBusy(false)
     setConfirm(null)
     if (e2) return toast.error(errorMessage(e2))
-    toast.success(`${rows.length} garde${rows.length > 1 ? 's' : ''} recopiée${rows.length > 1 ? 's' : ''}`)
+    toast.success(`${v.nShifts(rows.length)} recopié${v.sx(rows.length)}`)
     reload()
   }
 
@@ -224,7 +226,7 @@ export default function Planning() {
 
   async function exportWeek() {
     if (!base || !entries) return
-    const header = ['Agent', 'Site habituel', ...days.map((d) => `${dayShort(d)} ${dayNum(d)}`), 'Gardes', 'Heures']
+    const header = [v.Worker, `${v.Site} habituel`, ...days.map((d) => `${dayShort(d)} ${dayNum(d)}`), v.Shifts, 'Heures']
     const rows = groups.flatMap((g) =>
       g.people.map((e) => {
         let count = 0
@@ -265,7 +267,7 @@ export default function Planning() {
     <>
       <PageHeader
         title="Planning"
-        description="Gardes de la semaine, absences et remplacements."
+        description={`${v.Shifts} de la semaine, absences et remplacements.`}
         actions={
           <>
             <Button variant="secondary" icon={HeartPulse} onClick={() => setSickLeave(true)} disabled={noSetup}>Arrêt maladie</Button>
@@ -297,16 +299,16 @@ export default function Planning() {
         <Card>
           <EmptyState
             icon={CalendarDays}
-            title="Ajoutez d’abord vos sites et vos employés"
-            text="Le planning se construit à partir de vos agents et des sites qu’ils gardent."
+            title={`Ajoutez d’abord vos ${v.sites} et vos ${v.workers}`}
+            text={`Le planning se construit à partir de vos ${v.workers} et des ${v.sites} où ils travaillent.`}
           />
         </Card>
       ) : (
         <>
           <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-            <StatCard icon={CalendarCheck2} label="Gardes prévues" value={stats.shifts} sub="Cette semaine" />
+            <StatCard icon={CalendarCheck2} label={`${v.Shifts} prévu${v.sx(2)}`} value={stats.shifts} sub="Cette semaine" />
             <StatCard icon={UserX} label="Absences" value={stats.absences} tone={stats.absences ? 'amber' : 'green'} sub={stats.unreplaced ? `${stats.unreplaced} sans remplaçant` : 'Toutes remplacées'} />
-            <StatCard icon={AlertTriangle} label="Postes non couverts" value={stats.uncovered} tone={stats.uncovered ? 'red' : 'green'} sub={base.needs.length ? 'Selon les besoins des sites' : 'Définissez les besoins (vue Sites)'} />
+            <StatCard icon={AlertTriangle} label="Postes non couverts" value={stats.uncovered} tone={stats.uncovered ? 'red' : 'green'} sub={base.needs.length ? `Selon les besoins des ${v.sites}` : `Définissez les besoins (vue ${v.Sites})`} />
             <StatCard icon={Users} label="Agents actifs" value={base.employees.length} tone="green" />
           </div>
 
@@ -325,8 +327,8 @@ export default function Planning() {
                 <div className="flex rounded-xl bg-ink-100 p-1 text-[13px] font-medium">
                   {(
                     [
-                      ['agents', 'Par agent', Users],
-                      ['sites', 'Par site', MapPin],
+                      ['agents', `Par ${v.worker}`, Users],
+                      ['sites', `Par ${v.site}`, MapPin],
                     ] as const
                   ).map(([k, l, I]) => (
                     <button
@@ -339,11 +341,11 @@ export default function Planning() {
                   ))}
                 </div>
                 <Select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)} className="sm:w-52">
-                  <option value="">Tous les sites</option>
+                  <option value="">Tous les {v.sites}</option>
                   {base.sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </Select>
                 {view === 'agents' && (
-                  <Input leading={<Search className="size-4" />} placeholder="Agent…" value={q} onChange={(e) => setQ(e.target.value)} className="sm:w-44" />
+                  <Input leading={<Search className="size-4" />} placeholder={`${v.Worker}…`} value={q} onChange={(e) => setQ(e.target.value)} className="sm:w-44" />
                 )}
               </div>
             </div>
@@ -355,7 +357,7 @@ export default function Planning() {
                 <table className="w-full min-w-[860px] border-separate border-spacing-0 text-sm">
                   <thead>
                     <tr>
-                      <th className="sticky left-0 z-10 w-40 sm:w-56 border-b border-ink-100 bg-ink-50/95 px-4 py-2.5 text-left text-xs font-medium tracking-wide text-ink-500 uppercase backdrop-blur">Agent</th>
+                      <th className="sticky left-0 z-10 w-40 sm:w-56 border-b border-ink-100 bg-ink-50/95 px-4 py-2.5 text-left text-xs font-medium tracking-wide text-ink-500 uppercase backdrop-blur">{v.Worker}</th>
                       {days.map((d) => (
                         <th key={d} className={cx('border-b border-ink-100 px-1 py-2 text-center', d === todayIso ? 'bg-brand-50' : isWeekend(d) ? 'bg-ink-50' : 'bg-ink-50/70')}>
                           <span className={cx('block text-[11px] font-medium tracking-wide uppercase', d === todayIso ? 'text-brand-600' : 'text-ink-500')}>{dayShort(d)}</span>
@@ -367,7 +369,7 @@ export default function Planning() {
                   </thead>
                   <tbody>
                     {groups.length === 0 && (
-                      <tr><td colSpan={9} className="py-10 text-center text-sm text-ink-500">Aucun agent pour ce filtre.</td></tr>
+                      <tr><td colSpan={9} className="py-10 text-center text-sm text-ink-500">Aucun {v.worker} pour ce filtre.</td></tr>
                     )}
                     {groups.map((g) => (
                       <Fragment key={g.id || 'none'}>
@@ -375,7 +377,7 @@ export default function Planning() {
                           <td colSpan={9} className="sticky left-0 border-b border-ink-100 bg-white px-4 pt-4 pb-2">
                             <span className="inline-flex items-center gap-2 text-base font-semibold text-ink-900">
                               <MapPin className="size-4 text-brand-500" /> {g.name}
-                              <span className="font-normal text-ink-400 normal-case">· {g.people.length} agent{g.people.length > 1 ? 's' : ''}</span>
+                              <span className="font-normal text-ink-400 normal-case">· {v.nWorkers(g.people.length)}</span>
                             </span>
                           </td>
                         </tr>
@@ -426,7 +428,7 @@ export default function Planning() {
                 <table className="w-full min-w-[860px] border-separate border-spacing-0 text-sm">
                   <thead>
                     <tr>
-                      <th className="sticky left-0 z-10 w-40 sm:w-56 border-b border-ink-100 bg-ink-50/95 px-4 py-2.5 text-left text-xs font-medium tracking-wide text-ink-500 uppercase backdrop-blur">Site · garde</th>
+                      <th className="sticky left-0 z-10 w-40 sm:w-56 border-b border-ink-100 bg-ink-50/95 px-4 py-2.5 text-left text-xs font-medium tracking-wide text-ink-500 uppercase backdrop-blur">{v.Site} · {v.shift}</th>
                       {days.map((d) => (
                         <th key={d} className={cx('border-b border-ink-100 px-1 py-2 text-center', d === todayIso ? 'bg-brand-50' : 'bg-ink-50/70')}>
                           <span className={cx('block text-[11px] font-medium tracking-wide uppercase', d === todayIso ? 'text-brand-600' : 'text-ink-500')}>{dayShort(d)}</span>
@@ -445,7 +447,7 @@ export default function Planning() {
                               <span className="text-base font-semibold text-ink-900">{site.name}</span>
                               {site.zone && <span className="text-sm text-ink-500">· {site.zone}</span>}
                               <button onClick={() => setNeedsSite(site.id)} className="ml-2 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-brand-600 hover:bg-brand-50">
-                                <Settings2 className="size-3.5" /> Agents requis
+                                <Settings2 className="size-3.5" /> Effectif requis
                               </button>
                             </div>
                           </td>
@@ -542,7 +544,7 @@ export default function Planning() {
         onClose={() => setConfirm(null)}
         loading={busy}
         title="Recopier la semaine précédente ?"
-        text={`Les gardes du ${dayLong(addDays(start, -7))} au ${dayLong(addDays(start, -1))}${siteFilter ? ' (site sélectionné)' : ''} seront recopiées sur cette semaine. Les absences redeviennent des gardes normales, les remplacements ne sont pas recopiés. Rien n’est écrasé.`}
+        text={`Les ${v.shifts} du ${dayLong(addDays(start, -7))} au ${dayLong(addDays(start, -1))}${siteFilter ? ` (${v.site} sélectionné)` : ''} seront recopié${v.sx(2)} sur cette semaine. Les absences redeviennent des ${v.shifts} prévu${v.sx(2)}, les remplacements ne sont pas recopiés. Rien n’est écrasé.`}
         confirmLabel="Recopier"
         onConfirm={copyPreviousWeek}
       />
@@ -552,7 +554,7 @@ export default function Planning() {
         loading={busy}
         danger
         title="Effacer cette semaine ?"
-        text={`Toutes les gardes, absences et remplacements du ${weekLabel(start)}${siteFilter ? ' pour le site sélectionné' : ''} seront supprimés.`}
+        text={`Tous les ${v.shifts}, absences et remplacements du ${weekLabel(start)}${siteFilter ? ` pour ${v.leSite} sélectionné` : ''} seront supprimés.`}
         confirmLabel="Effacer"
         onConfirm={clearWeek}
       />

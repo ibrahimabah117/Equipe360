@@ -243,6 +243,7 @@ const UNIQUE: Record<string, string[][]> = {
   payroll_runs: [['company_id', 'period']],
   employees: [['company_id', 'phone']],
   punches: [['client_id']],
+  overtime_approvals: [['employee_id', 'week_start']],
 }
 
 const DEFAULTS: Record<string, () => Row> = {
@@ -380,7 +381,7 @@ function rest(table: string, method: string, params: URLSearchParams, headers: H
         continue
       }
       const row = { ...(DEFAULTS[table]?.() ?? {}), ...src }
-      if (!['site_shift_needs', 'payroll_settings', 'company_members'].includes(table) && !row.id) row.id = uid()
+      if (!['site_shift_needs', 'payroll_settings', 'company_members', 'overtime_approvals'].includes(table) && !row.id) row.id = uid()
       row.created_at ??= new Date().toISOString()
       db[table].push(row)
       out.push(row)
@@ -439,6 +440,12 @@ function rpc(name: string, p: Row) {
         { id: uid(), company_id: id, code: 'N', label: 'Nuit', start_time: '19:00:00', end_time: '07:00:00' },
       )
       return json(id)
+    }
+    case 'admin_set_sector': {
+      const c = db.companies.find((x) => x.id === p.p_company_id)
+      if (!c) return pgError('Entreprise introuvable')
+      c.sector = p.p_sector
+      return json(0)
     }
     case 'admin_update_subscription': {
       const c = db.companies.find((x) => x.id === p.p_company_id)

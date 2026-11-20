@@ -1,3 +1,4 @@
+import { useVocab } from '../lib/sector'
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { KeyRound, Plus, RotateCcw, ShieldCheck, Smartphone, Trash2, UserCog } from 'lucide-react'
@@ -32,6 +33,7 @@ const roleTone = { owner: 'brand', manager: 'amber', agent: 'neutral' } as const
 
 export default function Access() {
   const { company, isOwnerLevel } = useCompany()
+  const v = useVocab()
   const { session } = useAuth()
   const toast = useToast()
   const [params, setParams] = useSearchParams()
@@ -110,8 +112,8 @@ export default function Access() {
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
         {[
           { icon: ShieldCheck, t: 'Propriétaire', d: 'Tous les droits, gère les responsables.' },
-          { icon: UserCog, t: 'Responsable', d: 'Gère employés, sites, planning et accès agents.' },
-          { icon: Smartphone, t: 'Agent', d: 'Pointe et consulte son planning sur son téléphone.' },
+          { icon: UserCog, t: 'Responsable', d: `Gère ${v.workers}, ${v.sites}, planning et accès.` },
+          { icon: Smartphone, t: v.Worker, d: 'Pointe et consulte son planning sur son téléphone.' },
         ].map((r) => (
           <div key={r.t} className="flex gap-3 rounded-2xl bg-white p-4 ring-1 ring-ink-100">
             <r.icon className="mt-0.5 size-5 shrink-0 text-brand-500" />
@@ -155,13 +157,13 @@ export default function Access() {
                           {nameOf(m)} {m.user_id === session?.user.id && <span className="text-xs font-normal text-ink-400">(vous)</span>}
                         </p>
                         <p className="truncate text-xs text-ink-500">
-                          {m.employee_id ? empById[m.employee_id]?.job_title ?? 'Employé' : 'Non lié à une fiche employé'}
+                          {m.employee_id ? empById[m.employee_id]?.job_title ?? v.Worker : 'Non lié à une fiche du personnel'}
                         </p>
                       </div>
                     </div>
                   </Td>
                   <Td className="tabular hidden text-ink-700 sm:table-cell">{m.phone ? formatPhone(m.phone) : 'E-mail'}</Td>
-                  <Td><Badge tone={roleTone[m.role]}>{ROLE_LABELS[m.role]}</Badge></Td>
+                  <Td><Badge tone={roleTone[m.role]}>{m.role === 'agent' ? v.Worker : ROLE_LABELS[m.role]}</Badge></Td>
                   <Td className="hidden text-ink-600 md:table-cell">{formatDate(m.created_at)}</Td>
                   <Td>
                     <div className="flex justify-end gap-1">
@@ -223,7 +225,7 @@ export default function Access() {
         danger
         title="Retirer cet accès ?"
         confirmLabel="Retirer"
-        text={<>{removing && nameOf(removing)} ne pourra plus se connecter. Sa fiche employé et son historique sont conservés.</>}
+        text={<>{removing && nameOf(removing)} ne pourra plus se connecter. Sa fiche et son historique sont conservés.</>}
         onConfirm={doRemove}
       />
     </>
@@ -247,6 +249,7 @@ function CreateAccessModal({
   onClose: () => void
   onCreated: () => void
 }) {
+  const vc = useVocab()
   const pre = preselect ? employees.find((e) => e.id === preselect) : undefined
   const [role, setRole] = useState<Role>('agent')
   const [employeeId, setEmployeeId] = useState(pre?.id ?? '')
@@ -269,7 +272,7 @@ function CreateAccessModal({
   async function submit(ev: FormEvent) {
     ev.preventDefault()
     setError(null)
-    if (role === 'agent' && !employeeId) return setError('Choisissez l’employé concerné.')
+    if (role === 'agent' && !employeeId) return setError(`Choisissez l’${vc.worker} concerné.`)
     if (!normalizePhone(phone)) return setError('Numéro de téléphone invalide (ex. 622 12 34 56)')
     setLoading(true)
     try {
@@ -292,7 +295,7 @@ function CreateAccessModal({
   }
 
   const roles: { v: Role; t: string; d: string }[] = [
-    { v: 'agent', t: 'Agent', d: 'Pointage et planning' },
+    { v: 'agent', t: vc.Worker, d: 'Pointage et planning' },
     ...(allowManagers
       ? [
           { v: 'manager' as Role, t: 'Responsable', d: 'Gestion quotidienne' },
@@ -341,16 +344,16 @@ function CreateAccessModal({
             </div>
           )}
 
-          <Field label={role === 'agent' ? 'Employé' : 'Fiche employé (facultatif)'}>
+          <Field label={role === 'agent' ? vc.Worker : 'Fiche du personnel (facultatif)'}>
             <Select value={employeeId} onChange={(e) => pickEmployee(e.target.value)}>
-              <option value="">{role === 'agent' ? 'Choisir un employé…' : 'Aucune'}</option>
+              <option value="">{role === 'agent' ? `Choisir un ${vc.worker}…` : 'Aucune'}</option>
               {employees.map((e) => (
                 <option key={e.id} value={e.id}>{e.full_name}{e.job_title ? ` — ${e.job_title}` : ''}</option>
               ))}
             </Select>
           </Field>
           {role === 'agent' && employees.length === 0 && (
-            <Callout tone="warning">Tous vos employés actifs ont déjà un accès, ou aucun employé n’est enregistré.</Callout>
+            <Callout tone="warning">Tous vos {vc.workers} actifs ont déjà un accès, ou aucun {vc.worker} n’est enregistré.</Callout>
           )}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Nom affiché">
