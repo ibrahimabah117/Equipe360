@@ -14,6 +14,8 @@ const Login = DEMO ? DemoLogin : RealLogin
 const Router_ = DEMO ? HashRouter : BrowserRouter
 const AdminClients = lazy(() => import('./pages/AdminClients'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Overtime = lazy(() => import('./pages/Overtime'))
+const Live = lazy(() => import('./pages/Live'))
 const Employees = lazy(() => import('./pages/Employees'))
 const Sites = lazy(() => import('./pages/Sites'))
 const QrPrint = lazy(() => import('./pages/QrPrint'))
@@ -68,6 +70,8 @@ function CompanyShell() {
         <Route path="borne" element={<ManagerOnly><Borne /></ManagerOnly>} />
         <Route path="badges" element={<ManagerOnly><Badges /></ManagerOnly>} />
         <Route path="paie" element={<ManagerOnly><Payroll /></ManagerOnly>} />
+        <Route path="direct" element={<ManagerOnly><Live /></ManagerOnly>} />
+        <Route path="paie/heures-sup" element={<ManagerOnly><Overtime /></ManagerOnly>} />
         <Route path="rapport" element={<ManagerOnly><Reports /></ManagerOnly>} />
         <Route path="paie/:period/fiches" element={<PayslipPrint />} />
         <Route path="acces" element={<ManagerOnly><Access /></ManagerOnly>} />

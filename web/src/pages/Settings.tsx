@@ -294,6 +294,16 @@ function PayrollSettingsCard({ companyId }: { companyId: string }) {
               <Field label="Majoration au-delà (%)" hint={`Ex. ${v.overtime_tier1_hours} premières heures à +${v.overtime_tier1_pct} %, puis +${v.overtime_tier2_pct} %`}>
                 <Input type="number" min={0} max={300} value={v.overtime_tier2_pct} onChange={num('overtime_tier2_pct')} />
               </Field>
+              <div className="sm:col-span-2">
+                <Toggle
+                  checked={!!v.overtime_requires_approval}
+                  onChange={(x) => setV({ ...v, overtime_requires_approval: x })}
+                  label="Faire valider les heures sup par un responsable avant de les payer"
+                />
+                <p className="mt-1 pl-[52px] text-xs text-ink-500">
+                  Le temps pointé après la fin {vc.duShift} compte aussi. Rien n’est payé tant qu’un responsable n’a pas validé la semaine (menu Paie → Heures sup).
+                </p>
+              </div>
             </>
           )}
         </div>

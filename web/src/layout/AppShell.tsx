@@ -9,6 +9,7 @@ import {
   Clock,
   KeyRound,
   LayoutDashboard,
+  Radio,
   LogOut,
   MapPin,
   Menu,
@@ -105,6 +106,7 @@ export function AppShell({
   const companyNav: NavItem[] = manage
     ? [
         { to: base, label: 'Tableau de bord', icon: LayoutDashboard, end: true },
+        { to: `${base}/direct`, label: 'En direct', icon: Radio },
         { to: `${base}/planning`, label: 'Planning', icon: CalendarDays },
         { to: `${base}/pointages`, label: 'Pointages', icon: Clock },
         { to: `${base}/rapport`, label: 'Rapport d’assiduité', icon: ClipboardList },

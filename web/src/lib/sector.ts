@@ -180,6 +180,7 @@ function build(def: SectorDef) {
     AucunShift: `${shift.fem ? 'Aucune' : 'Aucun'} ${shift.s}`,
     laShift: vowel(shift.s) ? `l’${shift.s}` : `${shift.fem ? 'la' : 'le'} ${shift.s}`,
     AuShift: shift.fem ? `À la ${shift.s}` : vowel(shift.s) ? `À l’${shift.s}` : `Au ${shift.s}`,
+    duShift: shift.fem ? `de la ${shift.s}` : vowel(shift.s) ? `de l’${shift.s}` : `du ${shift.s}`,
     ceShift: `${shift.fem ? 'cette' : vowel(shift.s) ? 'cet' : 'ce'} ${shift.s}`,
     /** accord avec le mot « garde/poste » : '', 'e', 's', 'es' */
     sx: (n = 1) => e(shift, n),

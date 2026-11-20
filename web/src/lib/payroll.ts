@@ -17,6 +17,8 @@ export interface PayrollSettings {
   overtime_tier1_pct: number
   overtime_tier2_pct: number
   monthly_hours: number
+  /** Heures sup payées seulement après validation d'un responsable (semaine par semaine) */
+  overtime_requires_approval: boolean
 }
 
 export const DEFAULT_SETTINGS: Omit<PayrollSettings, 'company_id'> = {
@@ -34,6 +36,23 @@ export const DEFAULT_SETTINGS: Omit<PayrollSettings, 'company_id'> = {
   overtime_tier1_pct: 25,
   overtime_tier2_pct: 50,
   monthly_hours: 173.33,
+  overtime_requires_approval: false,
+}
+
+/** Décision d'un responsable sur les heures sup d'une semaine (clé : lundi AAAA-MM-JJ) */
+export interface OvertimeDecision {
+  status: 'approved' | 'rejected'
+  approved_hours: number
+}
+
+/** Détail des heures sup d'une semaine dans un bulletin */
+export interface OvertimeWeek {
+  week: string
+  /** heures au-delà du seuil, d'après les pointages */
+  hours: number
+  /** heures payées (toutes, ou celles validées si la validation est exigée) */
+  paid: number
+  status: 'auto' | 'pending' | 'approved' | 'rejected'
 }
 
 export interface PayrollRun {
@@ -133,6 +152,8 @@ export function computePayslip(params: {
   shifts: Record<string, ShiftType>
   punches: Punch[]
   manual?: Partial<ManualFields>
+  /** Décisions sur les heures sup, par semaine (si la validation est exigée) */
+  approvals?: Record<string, OvertimeDecision>
   /** Instant du calcul : les gardes pas encore commencées ne sont pas comptées */
   now?: number
 }) {
@@ -198,7 +219,9 @@ export function computePayslip(params: {
       // Temps réellement passé sur la garde (borné aux horaires prévus)
       const departure = outs.filter((t) => t > arrival && t <= end + 4 * 3600e3).sort((a, b) => a - b)[0]
       const from = Math.max(arrival, start)
-      const to = Math.min(departure ?? end, end)
+      // Avec validation des heures sup, le temps resté après la fin du poste compte (jusqu'à 4 h) :
+      // il ne sera payé que si un responsable le valide.
+      const to = settings.overtime_requires_approval && departure != null ? Math.min(departure, end + 4 * 3600e3) : Math.min(departure ?? end, end)
       addWorked(e.work_date, Math.max(0, Math.round((to - from) / 60000)))
       const late = Math.floor((arrival - start) / 60000)
       if (late > LATE_GRACE_MIN) {
@@ -223,7 +246,8 @@ export function computePayslip(params: {
   // Heures supplémentaires : au-delà du seuil hebdomadaire, en deux paliers de majoration
   let overtimeHours = 0
   let overtimePay = 0
-  const otWeeks: { week: string; hours: number }[] = []
+  const otWeeks: OvertimeWeek[] = []
+  const needApproval = !!settings.overtime_requires_approval
   if (settings.overtime_enabled) {
     const hourly = mode === 'hourly' ? rate : mode === 'per_shift' ? rate / settings.reference_shift_hours : monthly / (Number(settings.monthly_hours) || 173.33)
     // Au mois, l'heure supplémentaire n'est pas incluse dans le salaire : payée 100 % + majoration.
@@ -232,11 +256,16 @@ export function computePayslip(params: {
     for (const [week, mins] of Object.entries(weekMinutes)) {
       const extra = Math.max(0, mins / 60 - Number(settings.overtime_weekly_threshold))
       if (extra <= 0) continue
-      const t1 = Math.min(extra, Number(settings.overtime_tier1_hours))
-      const t2 = extra - t1
-      overtimeHours += extra
+      const decision = params.approvals?.[week]
+      const status: OvertimeWeek['status'] = !needApproval ? 'auto' : decision?.status ?? 'pending'
+      const paid = !needApproval ? extra : status === 'approved' ? Math.min(extra, Number(decision!.approved_hours) || 0) : 0
+      const r2 = (n: number) => Math.round(n * 100) / 100
+      otWeeks.push({ week, hours: r2(extra), paid: r2(paid), status })
+      if (paid <= 0) continue
+      const t1 = Math.min(paid, Number(settings.overtime_tier1_hours))
+      const t2 = paid - t1
+      overtimeHours += paid
       overtimePay += hourly * (t1 * (basePart + settings.overtime_tier1_pct / 100) + t2 * (basePart + settings.overtime_tier2_pct / 100))
-      otWeeks.push({ week, hours: Math.round(extra * 100) / 100 })
     }
     overtimeHours = Math.round(overtimeHours * 100) / 100
     overtimePay = Math.round(overtimePay)
