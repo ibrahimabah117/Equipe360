@@ -61,7 +61,16 @@ export default function PayslipPrint() {
 
   return (
     <div>
-      <style>{`@page { size: A4; margin: 12mm; } @media print { main { padding: 0 !important; max-width: none !important; } }`}</style>
+      <style>{`@page { size: A4; margin: 12mm; }
+        @media print {
+          main { padding: 0 !important; max-width: none !important; }
+          /* Un bulletin = une page, QR code compris : mise en page resserrée à l'impression */
+          article.slip { break-inside: avoid; }
+          article.slip td, article.slip th { padding-top: 4px; padding-bottom: 4px; }
+          article.slip .slip-sign { margin-top: 18px; break-inside: avoid; }
+          article.slip .slip-sign .sigline { margin-top: 36px; }
+          article.slip footer { margin-top: 14px; break-inside: avoid; }
+        }`}</style>
       <div className="no-print mb-6 flex flex-wrap items-center justify-between gap-3">
         <Link to={back}><Button variant="ghost" icon={ArrowLeft}>Retour</Button></Link>
         <div className="flex items-center gap-3">
@@ -93,7 +102,7 @@ export default function PayslipPrint() {
           return (
             <article
               key={s.id}
-              className="mx-auto max-w-[190mm] rounded-2xl bg-white p-8 text-[13px] text-ink-900 shadow-card ring-1 ring-ink-100 print:max-w-none print:rounded-none print:p-0 print:shadow-none print:ring-0"
+              className="slip mx-auto max-w-[190mm] rounded-2xl bg-white p-8 text-[13px] text-ink-900 shadow-card ring-1 ring-ink-100 print:max-w-none print:rounded-none print:p-0 print:shadow-none print:ring-0"
               style={{ breakAfter: i < slips.length - 1 ? 'page' : 'auto' }}
             >
               <header className="flex items-start justify-between gap-6 border-b-2 border-ink-900 pb-4">
@@ -173,11 +182,11 @@ export default function PayslipPrint() {
                 Arrêté le présent bulletin à la somme de <span className="font-semibold first-letter:uppercase">{numberToWords(Number(s.net))}</span> francs guinéens.
               </p>
 
-              <section className="mt-10 grid grid-cols-2 gap-10">
+              <section className="slip-sign mt-10 grid grid-cols-2 gap-10">
                 {['L’employeur', 'L’employé(e) — « reçu pour solde »'].map((l) => (
                   <div key={l}>
                     <p className="text-ink-500">{l}</p>
-                    <div className="mt-14 border-t border-ink-300 pt-1 text-xs text-ink-400">Signature</div>
+                    <div className="sigline mt-14 border-t border-ink-300 pt-1 text-xs text-ink-400">Signature</div>
                   </div>
                 ))}
               </section>
