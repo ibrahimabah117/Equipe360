@@ -440,6 +440,12 @@ function rpc(name: string, p: Row) {
       )
       return json(id)
     }
+    case 'admin_set_sector': {
+      const c = db.companies.find((x) => x.id === p.p_company_id)
+      if (!c) return pgError('Entreprise introuvable')
+      c.sector = p.p_sector
+      return json(0)
+    }
     case 'admin_update_subscription': {
       const c = db.companies.find((x) => x.id === p.p_company_id)
       if (!c) return pgError('Entreprise introuvable')
