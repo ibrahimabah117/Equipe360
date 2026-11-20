@@ -16,6 +16,7 @@ const AdminClients = lazy(() => import('./pages/AdminClients'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Overtime = lazy(() => import('./pages/Overtime'))
 const Live = lazy(() => import('./pages/Live'))
+const VerifyPayslip = lazy(() => import('./pages/VerifyPayslip'))
 const Employees = lazy(() => import('./pages/Employees'))
 const Sites = lazy(() => import('./pages/Sites'))
 const QrPrint = lazy(() => import('./pages/QrPrint'))
@@ -92,6 +93,7 @@ function Router() {
     return (
       <Routes>
         <Route path="/p/:token" element={<Login hint="Connectez-vous pour pointer sur ce site." />} />
+        <Route path="/v/:token" element={<Suspense fallback={<Splash />}><VerifyPayslip /></Suspense>} />
         <Route path="*" element={<Login />} />
       </Routes>
     )
@@ -111,6 +113,7 @@ function Router() {
       />
       <Route path="/c/:companyId/*" element={<CompanyArea />} />
       <Route path="/p/:token" element={<Suspense fallback={<Splash />}><PunchPage /></Suspense>} />
+      <Route path="/v/:token" element={<Suspense fallback={<Splash />}><VerifyPayslip /></Suspense>} />
       <Route path="/scan" element={<Suspense fallback={<Splash />}><ScanPage /></Suspense>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
