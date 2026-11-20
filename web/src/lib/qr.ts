@@ -5,6 +5,16 @@ export function punchUrl(token: string) {
   return `${window.location.origin}/p/${token}`
 }
 
+/** Adresse encodée dans le QR d'un bulletin de paie : page publique de vérification */
+export function verifyUrl(token: string) {
+  return `${window.location.origin}/v/${token}`
+}
+
+/** QR code d'authentification d'un bulletin de paie */
+export function payslipQrDataUrl(token: string, size = 240) {
+  return QRCode.toDataURL(verifyUrl(token), { width: size, margin: 0, errorCorrectionLevel: 'M', color: { dark: '#0B1B3F', light: '#FFFFFF' } })
+}
+
 export function qrDataUrl(token: string, size = 512) {
   return QRCode.toDataURL(punchUrl(token), {
     width: size,

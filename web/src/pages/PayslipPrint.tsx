@@ -1,3 +1,4 @@
+import { payslipQrDataUrl, verifyUrl } from '../lib/qr'
 import { useVocab } from '../lib/sector'
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
@@ -15,6 +16,7 @@ export default function PayslipPrint() {
   const { period = '' } = useParams()
   const [params] = useSearchParams()
   const only = params.get('e')
+  const [qr, setQr] = useState<Record<string, string>>({})
   const [state, setState] = useState<{ run: PayrollRun; slips: Payslip[]; emp: Record<string, Employee>; sites: Record<string, Site> } | null | 'none'>(null)
 
   useEffect(() => {
@@ -35,6 +37,12 @@ export default function PayslipPrint() {
         emp,
         sites: Object.fromEntries(((sites ?? []) as Site[]).map((s) => [s.id, s])),
       })
+      // QR d'authentification : seulement pour une paie validée
+      if ((run as PayrollRun).status === 'validated') {
+        const list = ((slips ?? []) as Payslip[]).filter((s) => s.verify_token)
+        const urls = await Promise.all(list.map((s) => payslipQrDataUrl(s.verify_token!)))
+        setQr(Object.fromEntries(list.map((s, k) => [s.id, urls[k]])))
+      }
     })()
   }, [company.id, period, only])
 
@@ -174,9 +182,21 @@ export default function PayslipPrint() {
                 ))}
               </section>
 
-              <footer className="mt-8 flex items-center justify-between border-t border-ink-100 pt-3 text-[11px] text-ink-400">
-                <span className="inline-flex items-center gap-1.5"><LogoMark className="size-4" /> Généré par Équipe360</span>
-                <span>{run.status === 'validated' ? `Paie validée le ${formatDate(run.validated_at)}` : 'Brouillon'}</span>
+              <footer className="mt-8 flex items-end justify-between gap-6 border-t border-ink-100 pt-3 text-[11px] text-ink-400">
+                <div className="space-y-1">
+                  <p className="inline-flex items-center gap-1.5"><LogoMark className="size-4" /> Généré par Équipe360</p>
+                  <p>{run.status === 'validated' ? `Paie validée le ${formatDate(run.validated_at)}` : 'Brouillon : pas de code d’authenticité tant que la paie n’est pas validée'}</p>
+                </div>
+                {qr[s.id] && s.verify_token && (
+                  <div className="flex items-center gap-3 text-right">
+                    <div className="max-w-[60mm] text-[10px] leading-snug text-ink-500">
+                      <p className="font-semibold text-ink-700">Authenticité du bulletin</p>
+                      <p>Scannez ce code pour vérifier les montants auprès de l’employeur.</p>
+                      <p className="mt-0.5 font-mono break-all text-ink-400">{verifyUrl(s.verify_token).replace(/^https?:\/\//, '')}</p>
+                    </div>
+                    <img src={qr[s.id]} alt="QR code d’authenticité" className="size-[24mm] shrink-0" />
+                  </div>
+                )}
               </footer>
             </article>
           )

@@ -229,7 +229,7 @@ function seed() {
       shifts, punches: db.punches.filter((p) => p.employee_id === emp.id) as any,
       manual: i === 2 ? { bonus: 150000, bonus_note: 'Prime de fin de mois' } : i === 6 ? { advance: 300000 } : undefined,
     })
-    return { id: uid(), run_id: runId, company_id: CID, ...r, created_at: now, updated_at: now }
+    return { id: uid(), run_id: runId, company_id: CID, ...r, verify_token: (uid() + uid()).replace(/-/g, '').slice(0, 40), created_at: now, updated_at: now }
   })
 }
 
@@ -395,6 +395,8 @@ function rest(table: string, method: string, params: URLSearchParams, headers: H
       if (table === 'payslips' && db.payroll_runs.find((x) => x.id === r.run_id)?.status === 'validated') return pgError('Paie validée : rouvrez-la pour la modifier')
       if (table === 'payroll_runs' && body.status && body.status !== r.status) {
         body.validated_at = body.status === 'validated' ? new Date().toISOString() : null
+        // Nouveau code d'authenticité pour chaque bulletin à chaque validation
+        if (body.status === 'validated') for (const s of db.payslips.filter((x) => x.run_id === r.id)) s.verify_token = (uid() + uid()).replace(/-/g, '').slice(0, 40)
       }
       Object.assign(r, body)
     }
@@ -440,6 +442,14 @@ function rpc(name: string, p: Row) {
         { id: uid(), company_id: id, code: 'N', label: 'Nuit', start_time: '19:00:00', end_time: '07:00:00' },
       )
       return json(id)
+    }
+    case 'verify_payslip': {
+      const s = db.payslips.find((x) => x.verify_token && x.verify_token === p.p_token)
+      const r = s && db.payroll_runs.find((x) => x.id === s.run_id)
+      const e = s && db.employees.find((x) => x.id === s.employee_id)
+      const c = s && db.companies.find((x) => x.id === s.company_id)
+      if (!s || !r || !e || !c) return json([])
+      return json([{ state: r.status === 'validated' ? 'valid' : 'reopened', company_name: c.name, employee_name: e.full_name, job_title: e.job_title, period: r.period, base_salary: s.base_salary, gross: s.gross, net: s.net, shifts_worked: s.shifts_worked, validated_at: r.validated_at }])
     }
     case 'admin_set_sector': {
       const c = db.companies.find((x) => x.id === p.p_company_id)

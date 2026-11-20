@@ -78,6 +78,8 @@ export interface PayrollRun {
 }
 
 export interface Payslip {
+  /** Code secret du QR d'authentification (donné à la validation de la paie) */
+  verify_token?: string | null
   id: string
   run_id: string
   company_id: string
