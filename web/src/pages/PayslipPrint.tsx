@@ -1,4 +1,4 @@
-import { payslipQrDataUrl, verifyUrl } from '../lib/qr'
+import { payslipQrDataUrl } from '../lib/qr'
 import { useVocab } from '../lib/sector'
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
@@ -192,7 +192,7 @@ export default function PayslipPrint() {
                     <div className="max-w-[60mm] text-[10px] leading-snug text-ink-500">
                       <p className="font-semibold text-ink-700">Authenticité du bulletin</p>
                       <p>Scannez ce code pour vérifier les montants auprès de l’employeur.</p>
-                      <p className="mt-0.5 font-mono break-all text-ink-400">{verifyUrl(s.verify_token).replace(/^https?:\/\//, '')}</p>
+                      <p className="mt-0.5 font-semibold text-ink-700">Émis par {company.name}</p>
                     </div>
                     <img src={qr[s.id]} alt="QR code d’authenticité" className="size-[24mm] shrink-0" />
                   </div>
