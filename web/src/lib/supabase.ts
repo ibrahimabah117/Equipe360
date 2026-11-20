@@ -1,3 +1,4 @@
+import type { PunchKind } from './punchKinds'
 import { createClient } from '@supabase/supabase-js'
 import { demoFetch, demoStorage } from '../demo/store'
 
@@ -35,6 +36,8 @@ export interface Company {
   admin_note: string | null
   /** Selfie obligatoire quand un agent pointe avec son téléphone */
   punch_photo_required: boolean
+  /** Pointage des pauses (début / fin) */
+  breaks_enabled?: boolean
   created_at: string
 }
 
@@ -158,7 +161,7 @@ export interface Punch {
   company_id: string
   employee_id: string
   site_id: string
-  kind: 'in' | 'out'
+  kind: PunchKind
   punched_at: string
   received_at: string
   latitude: number | null

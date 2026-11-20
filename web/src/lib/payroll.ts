@@ -19,6 +19,14 @@ export interface PayrollSettings {
   monthly_hours: number
   /** Heures sup payées seulement après validation d'un responsable (semaine par semaine) */
   overtime_requires_approval: boolean
+  /** Pointage des pauses activé pour l'entreprise (option de la société, recopiée ici pour le calcul) */
+  breaks_enabled?: boolean
+  /** Minutes de pause payées par poste */
+  break_paid_min: number
+  /** Pause non pointée sur un poste d'au moins 6 h : minutes retirées au forfait (0 = rien) */
+  break_auto_min: number
+  /** Au-delà, la pause est signalée comme trop longue */
+  break_max_min: number
 }
 
 export const DEFAULT_SETTINGS: Omit<PayrollSettings, 'company_id'> = {
@@ -37,6 +45,10 @@ export const DEFAULT_SETTINGS: Omit<PayrollSettings, 'company_id'> = {
   overtime_tier2_pct: 50,
   monthly_hours: 173.33,
   overtime_requires_approval: false,
+  breaks_enabled: false,
+  break_paid_min: 0,
+  break_auto_min: 0,
+  break_max_min: 60,
 }
 
 /** Décision d'un responsable sur les heures sup d'une semaine (clé : lundi AAAA-MM-JJ) */
@@ -181,6 +193,12 @@ export function computePayslip(params: {
   let lateMinutes = 0
   let nightShifts = 0
   const lateDays: { date: string; minutes: number }[] = []
+  const longBreaks: { date: string; minutes: number }[] = []
+  let breakMinutes = 0
+  let unpaidBreakMinutes = 0
+  const breakPunches = settings.breaks_enabled
+    ? punches.filter((p) => p.kind === 'break_start' || p.kind === 'break_end').map((p) => ({ kind: p.kind, t: +new Date(p.punched_at) })).sort((a, b) => a.t - b.t)
+    : []
 
   const ins = punches.filter((p) => p.kind === 'in').map((p) => +new Date(p.punched_at))
   const outs = punches.filter((p) => p.kind === 'out').map((p) => +new Date(p.punched_at))
@@ -222,7 +240,28 @@ export function computePayslip(params: {
       // Avec validation des heures sup, le temps resté après la fin du poste compte (jusqu'à 4 h) :
       // il ne sera payé que si un responsable le valide.
       const to = settings.overtime_requires_approval && departure != null ? Math.min(departure, end + 4 * 3600e3) : Math.min(departure ?? end, end)
-      addWorked(e.work_date, Math.max(0, Math.round((to - from) / 60000)))
+      let minutes = Math.max(0, Math.round((to - from) / 60000))
+      if (settings.breaks_enabled) {
+        // Pauses pointées pendant le poste ; une pause sans fin pointée court jusqu'à la fin du travail
+        const inside = breakPunches.filter((p) => p.t >= from && p.t <= to)
+        let pause = 0
+        let pointed = false
+        for (let i = 0; i < inside.length; i++) {
+          if (inside[i].kind !== 'break_start') continue
+          pointed = true
+          const stop = inside.slice(i + 1).find((p) => p.kind === 'break_end')?.t ?? to
+          const m = Math.round((stop - inside[i].t) / 60000)
+          pause += m
+          if (m > Number(settings.break_max_min || 60)) longBreaks.push({ date: e.work_date, minutes: m })
+        }
+        // Pause oubliée : forfait sur les postes d'au moins 6 h
+        if (!pointed && Number(settings.break_auto_min) > 0 && minutes >= 360) pause = Number(settings.break_auto_min)
+        const unpaid = Math.min(minutes, Math.max(0, pause - Number(settings.break_paid_min || 0)))
+        breakMinutes += pause
+        unpaidBreakMinutes += unpaid
+        minutes -= unpaid
+      }
+      addWorked(e.work_date, minutes)
       const late = Math.floor((arrival - start) / 60000)
       if (late > LATE_GRACE_MIN) {
         lateMinutes += late
@@ -300,7 +339,7 @@ export function computePayslip(params: {
     ...manual,
     gross,
     net,
-    details: { upcoming_shifts: upcoming, overtime_weeks: otWeeks, late_days: lateDays, billable_late_minutes: billableLate, seniority_pct: seniorityPct, day_rate: Math.round(dayRate) },
+    details: { break_minutes: breakMinutes, unpaid_break_minutes: unpaidBreakMinutes, long_breaks: longBreaks, upcoming_shifts: upcoming, overtime_weeks: otWeeks, late_days: lateDays, billable_late_minutes: billableLate, seniority_pct: seniorityPct, day_rate: Math.round(dayRate) },
   }
 }
 

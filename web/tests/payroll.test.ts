@@ -72,3 +72,17 @@ const pl = computePayslip({ employee: emp as any, period: '2026-11-01', settings
 eq([pl.worked_hours, pl.overtime_hours], [52.5, 12.5], 'temps après la fin du poste compté si validé')
 const pl0 = computePayslip({ employee: emp as any, period: '2026-11-01', settings: { ...pst, overtime_requires_approval: false }, entries: days5, shifts: sh8 as any, punches: pun5 })
 eq([pl0.worked_hours, pl0.overtime_hours], [40, 0], 'sans validation : borné aux horaires prévus (inchangé)')
+// Pauses : 06:00→14:00, pause 11:00→12:10 (70 min), 30 min payées → 40 min retirées ; pause > 60 min signalée
+const brk = { ...DEFAULT_SETTINGS, reference_shift_hours: 8, breaks_enabled: true, break_paid_min: 30, break_auto_min: 60, break_max_min: 60 }
+const hourlyEmp = { ...emp, pay_mode: 'hourly', pay_rate: 10000 } as any
+const pb = computePayslip({ employee: hourlyEmp, period: '2026-11-01', settings: brk, entries: [mk('2026-11-02', 'm')], shifts: sh8 as any,
+  punches: [P2('2026-11-02T06:00:00Z', 'in'), P2('2026-11-02T11:00:00Z', 'break_start'), P2('2026-11-02T12:10:00Z', 'break_end'), P2('2026-11-02T14:00:00Z', 'out')] })
+eq([pb.worked_hours, pb.base_salary, (pb.details as any).unpaid_break_minutes, (pb.details as any).long_breaks.length], [7.33, 73300, 40, 1], 'pause pointée : 40 min retirées, pause longue signalée')
+// Pause oubliée : forfait 60 min − 30 payées = 30 min retirées
+const pb2 = computePayslip({ employee: hourlyEmp, period: '2026-11-01', settings: brk, entries: [mk('2026-11-02', 'm')], shifts: sh8 as any,
+  punches: [P2('2026-11-02T06:00:00Z', 'in'), P2('2026-11-02T14:00:00Z', 'out')] })
+eq([pb2.worked_hours, (pb2.details as any).unpaid_break_minutes], [7.5, 30], 'pause oubliée : forfait')
+// Option désactivée : aucun effet, même avec des pointages de pause
+const pb3 = computePayslip({ employee: hourlyEmp, period: '2026-11-01', settings: { ...brk, breaks_enabled: false }, entries: [mk('2026-11-02', 'm')], shifts: sh8 as any,
+  punches: [P2('2026-11-02T06:00:00Z', 'in'), P2('2026-11-02T11:00:00Z', 'break_start'), P2('2026-11-02T12:10:00Z', 'break_end'), P2('2026-11-02T14:00:00Z', 'out')] })
+eq(pb3.worked_hours, 8, 'pauses désactivées : 8 h')

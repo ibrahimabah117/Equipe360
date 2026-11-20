@@ -18,3 +18,5 @@ const r2 = computeLive({ now: Date.parse('2026-11-20T06:05:00Z'), today: '2026-1
 eq(r2[0].people[0].state, 'attendu', 'dans les 10 min de tolérance : attendu')
 const r3 = computeLive({ now: Date.parse('2026-11-20T02:00:00Z'), today: '2026-11-20', shifts, needs: [{ site_id: 'L1', shift_type_id: 'n', headcount: 2 }], entries: [E('5', 'x', '2026-11-19', 'n')], punches: [P('x', 'in', '2026-11-19T21:58:00Z')] })
 eq([r3.length, r3[0].work_date, r3[0].present, r3[0].empty], [1, '2026-11-19', 1, 1], 'nuit de la veille en cours à 2 h')
+const r4 = computeLive({ now, today: '2026-11-20', shifts, needs: [], entries: [E('1', 'a', '2026-11-20', 'm')], punches: [P('a', 'in', '2026-11-20T05:55:00Z'), P('a', 'break_start' as any, '2026-11-20T09:40:00Z')] })
+eq([r4[0].people[0].state, r4[0].present], ['pause', 1], 'en pause : compté sur place')

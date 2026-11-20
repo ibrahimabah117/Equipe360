@@ -1,3 +1,5 @@
+import { loadPayrollSettings } from '../lib/payrollData'
+import { isBreak, KIND_LABEL } from '../lib/punchKinds'
 import { useVocab } from '../lib/sector'
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
@@ -12,8 +14,10 @@ import {
   ExternalLink,
   Hand,
   IdCard,
+  Coffee,
   LogIn,
   LogOut,
+  Play,
   MapPin,
   MapPinOff,
   Plus,
@@ -74,6 +78,12 @@ interface Row {
   state: RowState
   lateMin: number
   earlyMin: number
+  /** minutes de pause pointées pendant le poste */
+  breakMin: number
+  /** en pause en ce moment (début de pause sans fin) */
+  onBreakSince: number | null
+  /** une pause dépasse la limite fixée dans la paie */
+  longBreak: boolean
 }
 
 export default function Attendance() {
@@ -94,6 +104,10 @@ export default function Attendance() {
   const [manual, setManual] = useState<{ employeeId?: string; siteId?: string; kind?: 'in' | 'out' } | null>(null)
   const [detail, setDetail] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
+  const [breakMax, setBreakMax] = useState(60)
+  useEffect(() => {
+    loadPayrollSettings(company.id).then((s) => setBreakMax(Number(s.break_max_min) || 60))
+  }, [company.id])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -159,6 +173,26 @@ export default function Attendance() {
       const departure = [...mine].reverse().find((p) => p.kind === 'out' && +new Date(p.punched_at) >= start && +new Date(p.punched_at) <= end + 4 * 3600e3) ?? null
       if (arrival) used.add(arrival.id)
       if (departure) used.add(departure.id)
+      // Pauses pointées entre l'arrivée et le départ (ou maintenant)
+      let breakMin = 0
+      let onBreakSince: number | null = null
+      let longBreak = false
+      if (arrival) {
+        const a = +new Date(arrival.punched_at)
+        const z = departure ? +new Date(departure.punched_at) : Math.min(now, end + 4 * 3600e3)
+        const bp = mine.filter((p) => isBreak(p.kind) && +new Date(p.punched_at) >= a && +new Date(p.punched_at) <= z)
+        bp.forEach((p) => used.add(p.id))
+        for (let i = 0; i < bp.length; i++) {
+          if (bp[i].kind !== 'break_start') continue
+          const t0 = +new Date(bp[i].punched_at)
+          const endP = bp.slice(i + 1).find((p) => p.kind === 'break_end')
+          const t1 = endP ? +new Date(endP.punched_at) : z
+          const m = Math.round((t1 - t0) / 60000)
+          breakMin += m
+          if (m > breakMax) longBreak = true
+          if (!endP && !departure) onBreakSince = t0
+        }
+      }
       if (entry.work_date !== date) continue // garde de la veille : sert seulement à rattacher ses pointages
       const lateMin = arrival ? (+new Date(arrival.punched_at) - start) / 60000 : 0
       const earlyMin = departure ? (end - +new Date(departure.punched_at)) / 60000 : 0
@@ -168,12 +202,12 @@ export default function Attendance() {
       else if (now < start) state = 'upcoming'
       else if (now <= start + GRACE_MIN * 60000) state = 'expected'
       else state = 'missing'
-      out.push({ entry, employee: emp[entry.employee_id], shift: sh, site: site[entry.site_id], start, end, arrival, departure, state, lateMin, earlyMin })
+      out.push({ entry, employee: emp[entry.employee_id], shift: sh, site: site[entry.site_id], start, end, arrival, departure, state, lateMin, earlyMin, breakMin, onBreakSince, longBreak })
     }
     out.sort((a, b) => a.start - b.start || (a.employee?.full_name ?? '').localeCompare(b.employee?.full_name ?? ''))
     const unplanned = data.punches.filter((p) => !used.has(p.id) && dateAt(p.punched_at) === date)
     return { rows: out, unplanned }
-  }, [data, date, now])
+  }, [data, date, now, breakMax])
 
   const visible = rows.filter((r) => {
     if (siteFilter && r.entry.site_id !== siteFilter) return false
@@ -434,7 +468,16 @@ function AttendanceRow({
             <span className="text-ink-300">—</span>
           )}
         </div>
-        <div className="w-36 text-right">{badge}</div>
+        <div className="w-36 text-right">
+          {badge}
+          {r.onBreakSince != null ? (
+            <p className="mt-1 text-[11px] font-medium text-amber-700">En pause depuis {timeAt(r.onBreakSince)}</p>
+          ) : r.breakMin > 0 ? (
+            <p className={cx('mt-1 text-[11px]', r.longBreak ? 'font-medium text-red-600' : 'text-ink-500')}>
+              Pause {minutesLabel(r.breakMin)}{r.longBreak ? ' · trop longue' : ''}
+            </p>
+          ) : null}
+        </div>
       </div>
     </li>
   )
@@ -464,11 +507,11 @@ function PunchDetailModal({
             const site = sites.find((s) => s.id === p.site_id)
             return (
               <li key={p.id} className="relative">
-                <span className={cx('absolute top-0.5 -left-[33px] flex size-5 items-center justify-center rounded-full ring-4 ring-white', p.kind === 'in' ? 'bg-emerald-500' : 'bg-brand-500')}>
-                  {p.kind === 'in' ? <LogIn className="size-3 text-white" /> : <LogOut className="size-3 text-white" />}
+                <span className={cx('absolute top-0.5 -left-[33px] flex size-5 items-center justify-center rounded-full ring-4 ring-white', p.kind === 'in' ? 'bg-emerald-500' : isBreak(p.kind) ? 'bg-amber-500' : 'bg-brand-500')}>
+                  {p.kind === 'in' ? <LogIn className="size-3 text-white" /> : p.kind === 'break_start' ? <Coffee className="size-3 text-white" /> : p.kind === 'break_end' ? <Play className="size-3 text-white" /> : <LogOut className="size-3 text-white" />}
                 </span>
                 <p className="text-sm font-medium">
-                  {p.kind === 'in' ? 'Arrivée' : 'Départ'} · <span className="tabular">{timeAt(p.punched_at)}</span>
+                  {KIND_LABEL[p.kind]} · <span className="tabular">{timeAt(p.punched_at)}</span>
                   <span className="ml-2 text-xs font-normal text-ink-400">{dayLong(dateAt(p.punched_at))}</span>
                 </p>
                 <p className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-ink-500">

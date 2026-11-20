@@ -1,3 +1,4 @@
+import type { PunchKind } from '../lib/punchKinds'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Maximize2, Minimize2, Radio, UserCheck, UserX, Users } from 'lucide-react'
 import { useCompany } from '../lib/company'
@@ -19,6 +20,7 @@ interface Data {
 
 const STATE_STYLE: Record<LivePerson['state'], string> = {
   present: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
+  pause: 'bg-amber-50 text-amber-800 ring-amber-300',
   attendu: 'bg-amber-50 text-amber-800 ring-amber-200',
   manquant: 'bg-red-50 text-red-700 ring-red-200',
   parti: 'bg-ink-100 text-ink-600 ring-ink-200',
@@ -67,7 +69,7 @@ export default function Live() {
       entries: (en.data ?? []) as ScheduleEntry[],
       shifts,
       needs: (ne.data ?? []) as SiteNeed[],
-      punches: (pu.data ?? []) as { employee_id: string; kind: 'in' | 'out'; punched_at: string }[],
+      punches: (pu.data ?? []) as { employee_id: string; kind: PunchKind; punched_at: string }[],
     }).filter((s) => sites[s.site_id])
     setData({
       sites,
@@ -177,6 +179,7 @@ export default function Live() {
                           const emp = data.employees[p.employee_id]
                           const extra =
                             p.state === 'present' ? `arrivé ${timeAt(p.arrivedAt!)}` :
+                            p.state === 'pause' ? `en pause depuis ${timeAt(p.breakSince!)}` :
                             p.state === 'parti' ? `parti ${timeAt(p.leftAt!)}` :
                             p.state === 'attendu' ? 'attendu' :
                             p.state === 'manquant' ? 'pas pointé' : 'absent'

@@ -1,7 +1,8 @@
+import { isBreak, KIND_LABEL } from '../lib/punchKinds'
 import { useVocab } from '../lib/sector'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { Building2, CalendarX2, CheckCircle2, ChevronRight, CloudOff, FileText, LogIn, LogOut, MapPinOff, PauseCircle, ScanLine, ShieldX } from 'lucide-react'
+import { Building2, CalendarX2, CheckCircle2, ChevronRight, CloudOff, Coffee, FileText, LogIn, LogOut, MapPinOff, PauseCircle, ScanLine, ShieldX } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useCompany } from '../lib/company'
 import { supabase, type Employee, type Punch, type ScheduleEntry, type ShiftType, type Site } from '../lib/supabase'
@@ -229,7 +230,7 @@ export function AgentHome() {
       {failed.length > 0 && (
         <div className="mt-3">
           <Callout tone="danger" title="Pointage refusé par le serveur">
-            {failed.map((f) => `${f.kind === 'in' ? 'Arrivée' : 'Départ'} ${timeAt(f.punched_at)} : ${f.error}`).join(' · ')}{' '}
+            {failed.map((f) => `${KIND_LABEL[f.kind]} ${timeAt(f.punched_at)} : ${f.error}`).join(' · ')}{' '}
             <button className="font-medium underline" onClick={clearFailed}>Masquer</button>
           </Callout>
         </div>
@@ -268,17 +269,17 @@ export function AgentHome() {
           <ul className="divide-y divide-ink-100">
             {queue.filter((q) => !q.employee_id).map((q) => (
               <li key={q.client_id} className="flex items-center gap-3 px-5 py-3 text-sm">
-                {q.kind === 'in' ? <LogIn className="size-4 text-emerald-500" /> : <LogOut className="size-4 text-brand-500" />}
-                <span className="flex-1">{q.kind === 'in' ? 'Arrivée' : 'Départ'} · {q.site_name ?? 'Site'}</span>
+                {q.kind === 'in' ? <LogIn className="size-4 text-emerald-500" /> : isBreak(q.kind) ? <Coffee className="size-4 text-amber-500" /> : <LogOut className="size-4 text-brand-500" />}
+                <span className="flex-1">{KIND_LABEL[q.kind]} · {q.site_name ?? 'Site'}</span>
                 <span className="tabular font-medium">{timeAt(q.punched_at)}</span>
                 <CloudOff className="size-4 text-amber-500" />
               </li>
             ))}
             {d?.punches.map((p) => (
               <li key={p.id} className="flex items-center gap-3 px-5 py-3 text-sm">
-                {p.kind === 'in' ? <LogIn className="size-4 text-emerald-500" /> : <LogOut className="size-4 text-brand-500" />}
+                {p.kind === 'in' ? <LogIn className="size-4 text-emerald-500" /> : isBreak(p.kind) ? <Coffee className="size-4 text-amber-500" /> : <LogOut className="size-4 text-brand-500" />}
                 <span className="flex-1 truncate">
-                  {p.kind === 'in' ? 'Arrivée' : 'Départ'} · {d.sites[p.site_id]?.name ?? 'Site'}
+                  {KIND_LABEL[p.kind]} · {d.sites[p.site_id]?.name ?? 'Site'}
                   <span className="ml-1 text-xs text-ink-400">{dateAt(p.punched_at) === today() ? '' : dayLong(dateAt(p.punched_at))}</span>
                 </span>
                 <span className="tabular font-medium">{timeAt(p.punched_at)}</span>

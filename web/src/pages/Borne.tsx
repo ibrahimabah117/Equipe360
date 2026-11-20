@@ -78,7 +78,8 @@ export default function Borne() {
       setSites(siteList)
       setEmployees(emps)
       for (const x of (p.data ?? []) as Pick<Punch, 'employee_id' | 'kind' | 'punched_at'>[]) {
-        lastKind.current.set(x.employee_id, { kind: x.kind, at: +new Date(x.punched_at) })
+        // une pause ne fait pas quitter le site : la borne la traite comme une présence
+        lastKind.current.set(x.employee_id, { kind: x.kind === 'out' ? 'out' : 'in', at: +new Date(x.punched_at) })
       }
       if (!siteId && siteList.length === 1) setSiteId(siteList[0].id)
     })()

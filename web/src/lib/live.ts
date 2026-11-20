@@ -1,3 +1,4 @@
+import type { PunchKind } from './punchKinds'
 /**
  * Vue « en direct » : pour chaque lieu et chaque horaire en cours à l'instant `now`,
  * qui est là, qui est attendu, qui manque, et combien de postes restent vides.
@@ -6,7 +7,7 @@ import { addDays, conakryInstant } from './dates'
 import { shiftMinutes } from './payroll'
 import type { ScheduleEntry, ShiftType, SiteNeed } from './supabase'
 
-export type LiveState = 'present' | 'parti' | 'attendu' | 'manquant' | 'absent'
+export type LiveState = 'present' | 'pause' | 'parti' | 'attendu' | 'manquant' | 'absent'
 
 export interface LivePerson {
   entry_id: string
@@ -14,6 +15,8 @@ export interface LivePerson {
   state: LiveState
   arrivedAt?: number
   leftAt?: number
+  /** en pause depuis */
+  breakSince?: number
   replaces?: string | null
   absenceKind?: string | null
 }
@@ -33,9 +36,9 @@ export interface LiveSlot {
 }
 
 type Entry = Pick<ScheduleEntry, 'id' | 'employee_id' | 'site_id' | 'work_date' | 'shift_type_id' | 'status' | 'replaces_employee_id' | 'absence_kind'>
-type P = { employee_id: string; kind: 'in' | 'out'; punched_at: string }
+type P = { employee_id: string; kind: PunchKind; punched_at: string }
 
-const ORDER: Record<LiveState, number> = { manquant: 0, attendu: 1, parti: 2, present: 3, absent: 4 }
+const ORDER: Record<LiveState, number> = { manquant: 0, attendu: 1, parti: 2, pause: 3, present: 4, absent: 5 }
 
 export function computeLive(params: {
   now: number
@@ -77,7 +80,7 @@ export function computeLive(params: {
     if (s) s.required = n.headcount
   }
 
-  const byEmp = new Map<string, { kind: 'in' | 'out'; t: number }[]>()
+  const byEmp = new Map<string, { kind: PunchKind; t: number }[]>()
   for (const p of punches) {
     const list = byEmp.get(p.employee_id) ?? []
     list.push({ kind: p.kind, t: +new Date(p.punched_at) })
@@ -100,13 +103,21 @@ export function computeLive(params: {
       continue
     }
     const left = list.filter((p) => p.kind === 'out' && p.t > arrival.t).sort((a, b) => a.t - b.t)[0]
-    s.people.push({ ...base, state: left ? 'parti' : 'present', arrivedAt: arrival.t, leftAt: left?.t })
+    if (left) {
+      s.people.push({ ...base, state: 'parti', arrivedAt: arrival.t, leftAt: left.t })
+      continue
+    }
+    // En pause : dernier pointage de pause = début, sans fin
+    const lastBreak = list.filter((p) => (p.kind === 'break_start' || p.kind === 'break_end') && p.t > arrival.t).sort((a, b) => b.t - a.t)[0]
+    if (lastBreak?.kind === 'break_start') s.people.push({ ...base, state: 'pause', arrivedAt: arrival.t, breakSince: lastBreak.t })
+    else s.people.push({ ...base, state: 'present', arrivedAt: arrival.t })
   }
 
   for (const s of slots.values()) {
-    s.present = s.people.filter((p) => p.state === 'present').length
+    // sur place : présents et en pause
+    s.present = s.people.filter((p) => p.state === 'present' || p.state === 'pause').length
     // un « pas pointé » est déjà signalé à part : il ne compte pas aussi comme poste vide
-    const covered = s.people.filter((p) => p.state === 'present' || p.state === 'attendu' || p.state === 'manquant').length
+    const covered = s.people.filter((p) => p.state === 'present' || p.state === 'pause' || p.state === 'attendu' || p.state === 'manquant').length
     s.empty = Math.max(0, s.required - covered)
     s.people.sort((a, b) => ORDER[a.state] - ORDER[b.state])
   }

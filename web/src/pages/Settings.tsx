@@ -219,9 +219,11 @@ function PayrollSettingsCard({ companyId }: { companyId: string }) {
   async function save(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
-    const { company_id: _ignored, updated_at: _u, ...rest } = v as PayrollSettings & { updated_at?: string }
+    // breaks_enabled est une option de la société (table companies), pas de la paie
+    const { company_id: _ignored, updated_at: _u, breaks_enabled: _b, ...rest } = v as PayrollSettings & { updated_at?: string }
     void _ignored
     void _u
+    void _b
     const { error } = await supabase.from('payroll_settings').upsert({ ...rest, company_id: companyId })
     setSaving(false)
     if (error) return toast.error(errorMessage(error))
@@ -306,6 +308,19 @@ function PayrollSettingsCard({ companyId }: { companyId: string }) {
               </div>
             </>
           )}
+          <div className="border-t border-ink-100 pt-5 sm:col-span-2">
+            <p className="text-sm font-medium text-ink-800">Pauses</p>
+            <p className="mt-0.5 text-xs text-ink-500">Utilisé seulement si le pointage des pauses est activé (carte « Pointage »).</p>
+          </div>
+          <Field label="Pause payée par poste (minutes)" hint="Ce temps n’est pas retiré des heures travaillées">
+            <Input type="number" min={0} max={240} step={5} value={v.break_paid_min} onChange={num('break_paid_min')} />
+          </Field>
+          <Field label="Pause oubliée : minutes retirées" hint="Si aucune pause n’est pointée sur un poste de 6 h ou plus (0 = rien)">
+            <Input type="number" min={0} max={240} step={5} value={v.break_auto_min} onChange={num('break_auto_min')} />
+          </Field>
+          <Field label="Pause trop longue au-delà de (minutes)" hint="Signalée dans les pointages">
+            <Input type="number" min={5} max={480} step={5} value={v.break_max_min} onChange={num('break_max_min')} />
+          </Field>
         </div>
         <div className="flex items-center justify-between gap-4 rounded-b-2xl border-t border-ink-100 bg-ink-50/60 px-5 py-3">
           <p className="text-xs text-ink-500">Cotisations sociales et impôts : non calculés (utilisez « autre retenue »).</p>
@@ -322,7 +337,21 @@ function PunchSettingsCard() {
   const { company, reload } = useCompany()
   const toast = useToast()
   const [on, setOn] = useState(!!company.punch_photo_required)
+  const [breaks, setBreaks] = useState(!!company.breaks_enabled)
   const [saving, setSaving] = useState(false)
+
+  async function changeBreaks(v: boolean) {
+    setBreaks(v)
+    setSaving(true)
+    const { error } = await supabase.from('companies').update({ breaks_enabled: v }).eq('id', company.id)
+    setSaving(false)
+    if (error) {
+      setBreaks(!v)
+      return toast.error(errorMessage(error))
+    }
+    toast.success(v ? 'Pointage des pauses activé' : 'Pointage des pauses désactivé')
+    reload()
+  }
 
   async function change(v: boolean) {
     setOn(v)
@@ -350,6 +379,13 @@ function PunchSettingsCard() {
         <p className="text-sm text-ink-500">
           La photo est visible dans « Pointages », en ouvrant la fiche de l’{vc.worker}. Les alertes (téléphone partagé, position figée ou imprécise,
           hors zone, selfie manquant) sont calculées automatiquement dans tous les cas.
+        </p>
+        <div className={saving ? 'pointer-events-none border-t border-ink-100 pt-4 opacity-60' : 'border-t border-ink-100 pt-4'}>
+          <Toggle checked={breaks} onChange={changeBreaks} label="Pointage des pauses (début et fin de pause)" />
+        </div>
+        <p className="text-sm text-ink-500">
+          Les {vc.workers} voient deux boutons de plus en scannant le QR code. Le temps de pause est retiré des heures travaillées
+          (réglages dans « Paie » ci-dessous : pause payée, pause oubliée, pause trop longue).
         </p>
       </div>
     </Card>

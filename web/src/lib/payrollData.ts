@@ -56,6 +56,9 @@ export async function loadOvertimeApprovals(companyId: string, period: string) {
 }
 
 export async function loadPayrollSettings(companyId: string): Promise<Omit<PayrollSettings, 'company_id'>> {
-  const { data } = await supabase.from('payroll_settings').select('*').eq('company_id', companyId).maybeSingle()
-  return { ...DEFAULT_SETTINGS, ...(data ?? {}) }
+  const [{ data }, { data: c }] = await Promise.all([
+    supabase.from('payroll_settings').select('*').eq('company_id', companyId).maybeSingle(),
+    supabase.from('companies').select('breaks_enabled').eq('id', companyId).maybeSingle(),
+  ])
+  return { ...DEFAULT_SETTINGS, ...(data ?? {}), breaks_enabled: !!c?.breaks_enabled }
 }
